@@ -1,0 +1,66 @@
+---
+alwaysApply: true
+---
+
+---
+
+## name: Sync Engine Skill
+
+# Sync Engine Rules for NotesSync
+
+## Core Principle
+
+Local SQLite is source of truth.
+Supabase is the remote backup and multi-device bridge.
+Never block UI on sync. Always sync in background.
+
+## Push Flow
+
+1. Query SQLite: sync_status IN ('pending', 'failed')
+2. Bundle note with its items
+3. UPSERT to Supabase using id as conflict key
+4. On success: update sync_status = 'synced', sync_error = null
+5. On failure: update sync_status = 'failed', store error message
+6. Increment retry_count on failure
+
+## Pull Flow
+
+1. Read last_synced_at from sync_meta
+2. Query Supabase: updated_at > last_synced_at AND user_id = current
+3. For each remote note:
+   - Not in local → INSERT with sync_status = 'synced'
+   - Local exists, remote newer → overwrite local
+   - Local exists, local newer AND pending → keep local
+   - Equal timestamps → keep local, no action
+4. Update last_synced_at in sync_meta
+
+## Conflict Resolution (Last Write Wins)
+
+const resolveConflict = (
+local: Note,
+remote: SupabaseNote
+): ConflictResolution => {
+if (local.syncStatus === 'pending') return 'local_wins'
+if (remote.updated_at > local.updatedAt) return 'remote_wins'
+return 'local_wins'
+}
+
+## Sync Triggers
+
+- App foregrounds + online → full sync (push + pull)
+- Network reconnects → full sync (push + pull)
+- Background fetch → push only
+- Supabase Realtime event → pull only
+
+## Retry Rules
+
+- Max 5 retry attempts per note
+- After 5 failures mark as permanently failed
+- Reset retry_count on manual user retry
+- Never retry in a tight loop, always wait for next trigger
+
+## Never
+
+- Never sync on every keystroke
+- Never block note creation on sync result
+- Never delete local data without confirmed remote sync

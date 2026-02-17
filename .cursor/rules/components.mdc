@@ -1,0 +1,58 @@
+---
+alwaysApply: true
+---
+
+---
+
+## name: React Native Components Skill
+
+# Component Rules for NotesSync
+
+## Structure
+
+- Functional components only
+- No class components
+- One component per file
+- File name matches component name exactly
+
+## Typing
+
+interface Props {
+// every prop typed and commented
+}
+const MyComponent = ({ prop }: Props): JSX.Element => {}
+
+## State
+
+- Local UI state → useState
+- Shared app state → Zustand store
+- Server state → comes through SQLite via hooks
+- Never fetch from Supabase inside a component directly
+
+## Patterns
+
+// Always use custom hooks for data
+const { notes, createNote } = useNotes()
+
+// Never do this in a component
+const { data } = await supabase.from('notes').select()
+
+## Offline First UI
+
+- Optimistic updates: update UI before sync confirms
+- Show sync_status badge on every note card
+- Never disable UI actions due to network state
+- User can always create/edit/delete regardless of connection
+
+## Navigation
+
+- Use Expo Router only
+- Never use React Navigation directly
+- Use typed routes from expo-router
+
+## Performance
+
+- Use FlatList not ScrollView for lists
+- Memoize expensive computations with useMemo
+- Memoize callbacks with useCallback
+- Add keyExtractor to every FlatList
