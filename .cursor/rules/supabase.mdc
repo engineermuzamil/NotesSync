@@ -1,0 +1,54 @@
+---
+alwaysApply: true
+---
+
+---
+
+## name: Supabase Skill
+
+# Supabase Rules for NotesSync
+
+## Client Init
+
+Always import from src/config/supabase.ts
+Never initialize Supabase client in component files
+
+## Auth
+
+- Store JWT in expo-secure-store only
+- Key name: 'notessync_auth_tokens'
+- Never store tokens in AsyncStorage or Zustand
+- Always handle token expiry silently
+
+## Queries
+
+// Always filter by user_id even with RLS
+// RLS is a safety net, not the first line of defense
+const { data, error } = await supabase
+.from('notes')
+.select('\*')
+.eq('user_id', userId)
+.eq('is_deleted', false)
+
+// Always handle both data and error
+if (error) throw error
+if (!data) return []
+
+## Upsert Pattern for Sync
+
+await supabase
+.from('notes')
+.upsert(payload, { onConflict: 'id' })
+
+## Realtime
+
+- Only subscribe when app is in foreground
+- Always unsubscribe on component unmount
+- Never use Realtime as primary sync mechanism
+
+## RLS
+
+- All tables have RLS enabled
+- Users can only access their own rows
+- Public notes readable by anyone (bonus only)
+- Never disable RLS for debugging

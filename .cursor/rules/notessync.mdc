@@ -1,0 +1,74 @@
+---
+description: 
+alwaysApply: true
+---
+
+---
+
+## name: NotesSync Project Rules
+
+# Project Context
+
+NotesSync is an offline-first note-taking Android app built with
+Expo + TypeScript + Supabase as a technical assessment.
+Evaluators judge code quality, architecture, and git history
+more than features.
+
+# Stack (never suggest alternatives)
+
+- Expo SDK 51, React Native, TypeScript strict mode
+- Expo Router v3
+- Supabase JS v2
+- expo-sqlite (offline source of truth)
+- Zustand (state)
+- expo-secure-store (tokens)
+- @react-native-community/netinfo
+- expo-background-fetch + expo-task-manager
+- react-native-draggable-flatlist
+- react-native-reanimated + react-native-gesture-handler
+
+# Architecture
+
+- SQLite is ALWAYS written first, never Supabase directly
+- Every note has sync_status: pending | synced | failed
+- Sync engine uses Last Write Wins on updated_at
+- Never bypass local DB for any CRUD operation
+
+# TypeScript Rules
+
+- strict mode always on
+- No any types ever
+- All shared types live in src/types/index.ts only
+- Interfaces over type aliases for object shapes
+
+# Code Style
+
+- No semicolons
+- Single quotes
+- 2 space indentation
+- Trailing commas es5
+- Functional components only
+- No class components
+
+# File Rules
+
+- One responsibility per file
+- Never create a file not justified by a feature
+- Never modify more than one file per task
+- Always read existing file before modifying it
+
+# Git Rules
+
+- One logical change per commit
+- Format: feat: / fix: / refactor: / docs: / chore:
+- Never commit to main or develop directly
+- Always tell user the exact commit command after each task
+
+# Behaviour Rules
+
+- Do ONE task at a time
+- State what you will do and WAIT for go-ahead
+- Flag issues BEFORE writing code
+- Never install packages without listing and getting approval
+- Never jump ahead without confirmation
+- After every file written tell user exact git commit command

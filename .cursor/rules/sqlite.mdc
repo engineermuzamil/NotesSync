@@ -1,0 +1,64 @@
+---
+alwaysApply: true
+---
+
+---
+
+## name: SQLite Skill
+
+# SQLite Rules for NotesSync
+
+## Core Principle
+
+SQLite is the offline source of truth.
+ALWAYS write to SQLite first, never Supabase directly.
+
+## Type Mappings
+
+TypeScript → SQLite
+
+- string → TEXT
+- number → REAL or INTEGER
+- boolean → INTEGER (0 or 1)
+- Date/ISO → TEXT (ISO8601 string)
+- UUID → TEXT
+- null → NULL
+
+## Patterns
+
+// Opening database
+import \* as SQLite from 'expo-sqlite'
+const db = SQLite.openDatabaseSync('notessync.db')
+
+// Always use transactions for multiple writes
+db.withTransactionSync(() => {
+// multiple operations here
+})
+
+// Always handle errors
+try {
+const result = db.runSync(sql, params)
+} catch (error) {
+// handle error, update sync_status to failed
+}
+
+## sync_status Lifecycle
+
+- Set to 'pending' on every local create/update/delete
+- Set to 'synced' after successful push to Supabase
+- Set to 'failed' after push error, store message in sync_error
+- Never set to 'synced' without confirming Supabase response
+
+## Soft Deletes
+
+Never hard delete locally.
+Always set is_deleted = 1 and sync_status = 'pending'
+Let sync engine push the delete to Supabase
+Only hard delete locally after confirmed remote delete
+
+## Migrations
+
+- Every schema change is a new migration
+- Migrations run exactly once tracked by schema_version
+- Never modify existing migration, always add new one
+- Always test migration is idempotent (safe to run twice)

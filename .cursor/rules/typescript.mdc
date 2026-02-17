@@ -1,0 +1,48 @@
+---
+alwaysApply: true
+---
+
+---
+
+## name: TypeScript Skill
+
+# TypeScript Standards for NotesSync
+
+## Rules
+
+- strict mode always on, no exceptions
+- No any types, use unknown if type is truly unknown
+- No type assertions (as Type) unless absolutely necessary
+  and always add a comment explaining why
+- Prefer interfaces over type aliases for object shapes
+- Prefer type aliases for unions and primitives
+- All shared types live ONLY in src/types/index.ts
+- Never define local types inside component files
+- Always type function parameters and return values explicitly
+- Use NoteId, UserId, NoteItemId instead of raw string
+  for identifiers
+
+## Patterns
+
+// Good
+const getNote = async (id: NoteId): Promise<Note | null> => {}
+
+// Bad  
+const getNote = async (id: string): Promise<any> => {}
+
+## Enums
+
+Never use TypeScript enums, use union types instead
+// Good
+type SyncStatus = 'pending' | 'synced' | 'failed'
+// Bad
+enum SyncStatus { pending, synced, failed }
+
+## Nullability
+
+Always be explicit about null vs undefined
+
+- Use null for intentionally absent values
+- Use undefined only for optional function parameters
+- Never use non-null assertion operator (!) unless
+  you add a comment explaining the guarantee
