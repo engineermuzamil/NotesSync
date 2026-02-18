@@ -131,3 +131,56 @@ export function getArchivedNotes(userId: UserId): Note[] {
   )
   return rows.map(rowToNote)
 }
+
+export function getNoteById(id: NoteId): Note | null {
+  const db = getDb()
+  const row = db.getFirstSync<NoteRow>(
+    'SELECT * FROM notes WHERE id = ? AND is_deleted = 0',
+    id
+  )
+  return row ? rowToNote(row) : null
+}
+
+export interface UpdateNoteInput {
+  title?: string
+  body?: string | null
+  isPinned?: boolean
+  isArchived?: boolean
+  type?: NoteType
+  colorLabel?: string | null
+}
+
+export function updateNote(id: NoteId, input: UpdateNoteInput): Note | null {
+  const existing = getNoteById(id)
+  if (!existing) return null
+
+  const db = getDb()
+  const now = nowIso()
+  const note: Note = {
+    ...existing,
+    ...input,
+    updatedAt: now,
+    syncStatus: 'pending',
+    syncError: null,
+  }
+
+  db.runSync(
+    `UPDATE notes SET
+      title = ?, body = ?, is_pinned = ?, is_archived = ?,
+      type = ?, color_label = ?, updated_at = ?,
+      sync_status = ?, sync_error = ?
+     WHERE id = ?`,
+    note.title,
+    note.body,
+    note.isPinned ? 1 : 0,
+    note.isArchived ? 1 : 0,
+    note.type,
+    note.colorLabel,
+    note.updatedAt,
+    note.syncStatus,
+    note.syncError,
+    id
+  )
+
+  return note
+}
