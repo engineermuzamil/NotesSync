@@ -71,3 +71,63 @@ export function createNote(input: CreateNoteInput): Note {
 
   return note
 }
+
+interface NoteRow {
+  id: string
+  user_id: string
+  type: string
+  title: string
+  body: string | null
+  is_pinned: number
+  is_archived: number
+  is_deleted: number
+  color_label: string | null
+  created_at: string
+  updated_at: string
+  sync_status: string
+  sync_error: string | null
+  remote_updated_at: string | null
+  retry_count: number
+}
+
+function rowToNote(row: NoteRow): Note {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type as Note['type'],
+    title: row.title,
+    body: row.body,
+    isPinned: row.is_pinned === 1,
+    isArchived: row.is_archived === 1,
+    isDeleted: row.is_deleted === 1,
+    colorLabel: row.color_label,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    syncStatus: row.sync_status as Note['syncStatus'],
+    syncError: row.sync_error,
+    remoteUpdatedAt: row.remote_updated_at,
+    retryCount: row.retry_count,
+  }
+}
+
+export function getNotes(userId: UserId): Note[] {
+  const db = getDb()
+  const rows = db.getAllSync<NoteRow>(
+    `SELECT * FROM notes
+     WHERE user_id = ? AND is_deleted = 0 AND is_archived = 0
+     ORDER BY is_pinned DESC, updated_at DESC`,
+    userId
+  )
+  return rows.map(rowToNote)
+}
+
+export function getArchivedNotes(userId: UserId): Note[] {
+  const db = getDb()
+  const rows = db.getAllSync<NoteRow>(
+    `SELECT * FROM notes
+     WHERE user_id = ? AND is_deleted = 0 AND is_archived = 1
+     ORDER BY is_pinned DESC, updated_at DESC`,
+    userId
+  )
+  return rows.map(rowToNote)
+}
