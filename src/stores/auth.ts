@@ -40,7 +40,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user: result.user, session: result.session })
   },
   loginWithGoogle: async () => {
-    await authService.loginWithGoogle()
+    const result = await authService.loginWithGoogle()
+    set({ user: result.user, session: result.session })
   },
   logout: async () => {
     await authService.logout()

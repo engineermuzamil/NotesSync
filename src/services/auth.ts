@@ -1,6 +1,8 @@
 import { supabase } from '@/src/config/supabase'
 import type { Session, User } from '@supabase/supabase-js'
 import * as SecureStore from 'expo-secure-store'
+import * as WebBrowser from 'expo-web-browser'
+import * as Linking from 'expo-linking'
 
 const AUTH_TOKENS_KEY = 'notessync_auth_tokens'
 
@@ -79,11 +81,13 @@ export async function login(
   return { user: data.user, session: data.session }
 }
 
-export async function loginWithGoogle(): Promise<void> {
+export async function loginWithGoogle(): Promise<{ user: User; session: Session }> {
+  const redirectTo = Linking.createURL('auth/callback')
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: 'notessync://auth/callback',
+      redirectTo,
     },
   })
 
@@ -91,6 +95,41 @@ export async function loginWithGoogle(): Promise<void> {
   if (!data.url) {
     throw new Error('Google OAuth failed: no redirect URL')
   }
+
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo)
+
+  if (result.type !== 'success') {
+    throw new Error('OAuth cancelled or failed')
+  }
+
+  const callbackUrl = result.url
+  const urlObj = new URL(callbackUrl)
+  const code = urlObj.searchParams.get('code')
+  const errorCode = urlObj.searchParams.get('error')
+
+  if (errorCode) {
+    throw new Error(`OAuth error: ${errorCode}`)
+  }
+
+  if (!code) {
+    throw new Error('No authorization code in callback')
+  }
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(
+    code
+  )
+
+  if (sessionError) throw sessionError
+  if (!sessionData.user || !sessionData.session) {
+    throw new Error('Failed to exchange code for session')
+  }
+
+  await storeTokens({
+    accessToken: sessionData.session.access_token,
+    refreshToken: sessionData.session.refresh_token ?? '',
+  })
+
+  return { user: sessionData.user, session: sessionData.session }
 }
 
 export async function logout(): Promise<void> {
