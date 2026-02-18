@@ -184,3 +184,21 @@ export function updateNote(id: NoteId, input: UpdateNoteInput): Note | null {
 
   return note
 }
+
+export function deleteNote(id: NoteId): boolean {
+  const existing = getNoteById(id)
+  if (!existing) return false
+
+  const db = getDb()
+  const now = nowIso()
+
+  db.runSync(
+    `UPDATE notes SET
+      is_deleted = 1, updated_at = ?, sync_status = 'pending', sync_error = NULL
+     WHERE id = ?`,
+    now,
+    id
+  )
+
+  return true
+}
