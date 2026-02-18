@@ -1,6 +1,6 @@
-import * as SecureStore from 'expo-secure-store'
-import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/src/config/supabase'
+import type { Session, User } from '@supabase/supabase-js'
+import * as SecureStore from 'expo-secure-store'
 
 const AUTH_TOKENS_KEY = 'notessync_auth_tokens'
 
@@ -37,7 +37,9 @@ export interface LoginInput {
   password: string
 }
 
-export async function register(input: RegisterInput): Promise<{ user: User; session: Session }> {
+export async function register(
+  input: RegisterInput
+): Promise<{ user: User; session: Session }> {
   const { data, error } = await supabase.auth.signUp({
     email: input.email,
     password: input.password,
@@ -56,7 +58,9 @@ export async function register(input: RegisterInput): Promise<{ user: User; sess
   return { user: data.user, session: data.session }
 }
 
-export async function login(input: LoginInput): Promise<{ user: User; session: Session }> {
+export async function login(
+  input: LoginInput
+): Promise<{ user: User; session: Session }> {
   const { data, error } = await supabase.auth.signInWithPassword({
     email: input.email,
     password: input.password,
@@ -93,4 +97,36 @@ export async function logout(): Promise<void> {
   const { error } = await supabase.auth.signOut()
   await clearTokens()
   if (error) throw error
+}
+
+export async function restoreSession(): Promise<{ user: User; session: Session } | null> {
+  try {
+    const tokens = await getStoredTokens()
+    if (!tokens) return null
+
+    const { data, error } = await supabase.auth.setSession({
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    })
+
+    if (error) {
+      await clearTokens()
+      return null
+    }
+
+    if (!data.user || !data.session) {
+      await clearTokens()
+      return null
+    }
+
+    await storeTokens({
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token ?? '',
+    })
+
+    return { user: data.user, session: data.session }
+  } catch {
+    await clearTokens()
+    return null
+  }
 }
