@@ -1,5 +1,6 @@
 import { useNotes } from '@/src/hooks/useNotes'
 import type { Note } from '@/src/types'
+import { useAuthStore } from '@/src/stores/authStore'
 import { router, type Href } from 'expo-router'
 import { useState } from 'react'
 import {
@@ -14,7 +15,22 @@ import {
 
 export default function NotesListScreen() {
   const { notes, isLoading, createNote, deleteNote } = useNotes()
+  const { logout } = useAuthStore()
   const [isCreating, setIsCreating] = useState(false)
+
+  const handleLogout = async (): Promise<void> => {
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          await logout()
+          router.replace('/(auth)/login')
+        },
+      },
+    ])
+  }
 
   const handleCreateNote = async (): Promise<void> => {
     if (isCreating) return
@@ -101,6 +117,9 @@ export default function NotesListScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Notes</Text>
+        <Pressable style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Log Out</Text>
+        </Pressable>
       </View>
 
       <FlatList
@@ -137,6 +156,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: '#fff',
     paddingTop: 60,
     paddingBottom: 16,
@@ -148,6 +170,15 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     color: '#000',
+  },
+  logoutButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  logoutText: {
+    fontSize: 16,
+    color: '#FF3B30',
+    fontWeight: '600',
   },
   listContent: {
     padding: 16,
