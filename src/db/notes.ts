@@ -115,7 +115,7 @@ export function getNotes(userId: UserId): Note[] {
   const rows = db.getAllSync<NoteRow>(
     `SELECT * FROM notes
      WHERE user_id = ? AND is_deleted = 0 AND is_archived = 0
-     ORDER BY is_pinned DESC, updated_at DESC`,
+     ORDER BY is_pinned DESC, updated_at ASC`,
     userId
   )
   return rows.map(rowToNote)
@@ -126,7 +126,7 @@ export function getArchivedNotes(userId: UserId): Note[] {
   const rows = db.getAllSync<NoteRow>(
     `SELECT * FROM notes
      WHERE user_id = ? AND is_deleted = 0 AND is_archived = 1
-     ORDER BY is_pinned DESC, updated_at DESC`,
+     ORDER BY is_pinned DESC, updated_at ASC`,
     userId
   )
   return rows.map(rowToNote)
