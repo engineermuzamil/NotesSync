@@ -1,25 +1,29 @@
+import { getNoteById as getDbNoteById } from '@/src/db/notes'
 import { useNotes } from '@/src/hooks/useNotes'
-import { router, useLocalSearchParams } from 'expo-router'
-import { useState, useEffect, useRef } from 'react'
-import {
-  View,
-  TextInput,
-  StyleSheet,
-  Pressable,
-  Text,
-  ScrollView,
-  Alert,
-} from 'react-native'
 import type { NoteId } from '@/src/types'
+import { router, useLocalSearchParams } from 'expo-router'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native'
 
 export default function NoteEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
-  const { getNoteById, updateNote, deleteNote } = useNotes()
-  const note = getNoteById(id as NoteId)
+  const { updateNote, deleteNote } = useNotes()
+  const noteId = typeof id === 'string' ? (id as NoteId) : null
+  const [note, setNote] = useState(() =>
+    noteId ? getDbNoteById(noteId) : null
+  )
 
-  const [title, setTitle] = useState(note?.title || '')
-  const [body, setBody] = useState(note?.body || '')
-  const [isPinned, setIsPinned] = useState(note?.isPinned || false)
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [isPinned, setIsPinned] = useState(false)
 
   const saveTimeoutRef = useRef<number | null>(null)
 
@@ -34,8 +38,8 @@ export default function NoteEditorScreen() {
     }
 
     saveTimeoutRef.current = setTimeout(() => {
-      if (id) {
-        updateNote(id as NoteId, {
+      if (noteId) {
+        updateNote(noteId, {
           title: newTitle,
           body: newBody,
           isPinned: newIsPinned,
@@ -52,6 +56,30 @@ export default function NoteEditorScreen() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!noteId) {
+      setNote(null)
+      setTitle('')
+      setBody('')
+      setIsPinned(false)
+      return
+    }
+
+    const loadedNote = getDbNoteById(noteId)
+    setNote(loadedNote)
+
+    if (!loadedNote) {
+      setTitle('')
+      setBody('')
+      setIsPinned(false)
+      return
+    }
+
+    setTitle(loadedNote.title)
+    setBody(loadedNote.body ?? '')
+    setIsPinned(loadedNote.isPinned)
+  }, [noteId])
+
   const handleTitleChange = (text: string): void => {
     setTitle(text)
     debouncedSave(text, body, isPinned)
@@ -65,8 +93,8 @@ export default function NoteEditorScreen() {
   const handleTogglePin = (): void => {
     const newPinned = !isPinned
     setIsPinned(newPinned)
-    if (id) {
-      updateNote(id as NoteId, { isPinned: newPinned })
+    if (noteId) {
+      updateNote(noteId, { isPinned: newPinned })
     }
   }
 
@@ -77,8 +105,8 @@ export default function NoteEditorScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          if (id) {
-            await deleteNote(id as NoteId)
+          if (noteId) {
+            await deleteNote(noteId)
             router.back()
           }
         },
