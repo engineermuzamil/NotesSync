@@ -1,26 +1,12 @@
-import { StyleSheet } from 'react-native'
+import { useAuthStore } from '@/src/stores/authStore'
+import { Redirect } from 'expo-router'
 
-import { ThemedText } from '@/components/themed-text'
-import { ThemedView } from '@/components/themed-view'
+export default function Index() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
 
-export default function WelcomeScreen(): JSX.Element {
-  return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title">NotesSync</ThemedText>
-      <ThemedText style={styles.subtitle}>Your notes, synced.</ThemedText>
-    </ThemedView>
-  )
+  if (isAuthenticated) {
+    return <Redirect href="/(app)" />
+  }
+
+  return <Redirect href="/(auth)/login" />
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  subtitle: {
-    marginTop: 8,
-    opacity: 0.8,
-  },
-})
