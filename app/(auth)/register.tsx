@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/src/stores/authStore'
-import { router, type Href } from 'expo-router'
+import { router } from 'expo-router'
 import { useState } from 'react'
 import {
   Alert,
@@ -19,8 +19,7 @@ export default function RegisterScreen() {
   const register = useAuthStore((state) => state.register)
 
   const handleNavigateToLogin = (): void => {
-    // Type assertion needed because login route doesn't exist yet
-    router.push('/auth/login' as Href)
+    router.push('/(auth)/login')
   }
 
   const validateForm = (): string | null => {

@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/src/stores/authStore'
-import { router, type Href } from 'expo-router'
+import { router } from 'expo-router'
 import { useState } from 'react'
 import {
   Alert,
@@ -18,8 +18,7 @@ export default function LoginScreen() {
   const login = useAuthStore((state) => state.login)
 
   const handleNavigateToRegister = (): void => {
-    // Type assertion needed because register route exists but types not updated yet
-    router.push('/auth/register' as Href)
+    router.push('/(auth)/register')
   }
 
   const handleForgotPassword = (): void => {
@@ -66,7 +65,11 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome Back</Text>
+      <Text style={styles.appName}>Notes Sync</Text>
+      <Text style={styles.subtitle}>
+        {' '}
+        Sign in to sync your notes across devices
+      </Text>
 
       <TextInput
         style={styles.input}
@@ -125,11 +128,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     backgroundColor: '#fff',
   },
-  title: {
-    fontSize: 32,
+  appName: {
+    fontSize: 40,
     fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+    color: '#007AFF',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+    color: '#333',
+  },
+  subtitle: {
+    fontSize: 14,
     marginBottom: 32,
     textAlign: 'center',
+    color: '#666',
   },
   input: {
     height: 48,
