@@ -1,8 +1,9 @@
 import { useNotes } from '@/src/hooks/useNotes'
-import type { Note } from '@/src/types'
 import { useAuthStore } from '@/src/stores/authStore'
+import type { Note } from '@/src/types'
+import { useFocusEffect } from '@react-navigation/native'
 import { router, type Href } from 'expo-router'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -14,9 +15,15 @@ import {
 } from 'react-native'
 
 export default function NotesListScreen() {
-  const { notes, isLoading, createNote, deleteNote } = useNotes()
+  const { notes, isLoading, loadNotes, createNote, deleteNote } = useNotes()
   const { logout } = useAuthStore()
   const [isCreating, setIsCreating] = useState(false)
+
+  useFocusEffect(
+    useCallback(() => {
+      loadNotes()
+    }, [loadNotes])
+  )
 
   const handleLogout = async (): Promise<void> => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
@@ -39,7 +46,7 @@ export default function NotesListScreen() {
     try {
       const newNote = await createNote({
         type: 'text',
-        title: 'Untitled Note',
+        title: '',
         body: '',
         userId: '', // Will be set by hook
       })
