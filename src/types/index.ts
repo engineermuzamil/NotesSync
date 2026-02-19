@@ -47,3 +47,20 @@ export interface NoteWithItems {
   note: Note
   items: NoteItem[]
 }
+
+export interface AuthUser {
+  id: UserId
+  email: string
+  createdAt: string
+}
+
+export interface AuthSession {
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+}
+
+export interface AuthResponse {
+  user: AuthUser
+  session: AuthSession
+}
