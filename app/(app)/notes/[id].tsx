@@ -219,6 +219,20 @@ export default function NoteEditorScreen() {
     debouncedSave(title, nextBody, isPinned, noteType)
   }
 
+  const handleChecklistUncheckAll = (): void => {
+    if (noteType !== 'checklist') return
+    if (completedChecklistCount === 0) return
+
+    const nextItems = checklistItems.map((item) => ({
+      ...item,
+      checked: false,
+    }))
+
+    const nextBody = serializeChecklistBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
+  }
+
   const handleChecklistKeyPress = (index: number, key: string): void => {
     if (noteType !== 'checklist') return
     if (key !== 'Backspace') return
@@ -345,9 +359,23 @@ export default function NoteEditorScreen() {
 
         {noteType === 'checklist' ? (
           <View style={styles.checklistContainer}>
-            <Text style={styles.checklistSummary}>
-              {completedChecklistCount}/{checklistItems.length} completed
-            </Text>
+            <View style={styles.checklistSummaryRow}>
+              <Text style={styles.checklistSummary}>
+                {completedChecklistCount}/{checklistItems.length} completed
+              </Text>
+
+              <Pressable
+                style={[
+                  styles.uncheckAllButton,
+                  completedChecklistCount === 0 &&
+                    styles.uncheckAllButtonDisabled,
+                ]}
+                onPress={handleChecklistUncheckAll}
+                disabled={completedChecklistCount === 0}
+              >
+                <Text style={styles.uncheckAllButtonText}>Uncheck all</Text>
+              </Pressable>
+            </View>
 
             {checklistItems.map((item, index) => (
               <View key={String(index)} style={styles.checklistRow}>
@@ -495,7 +523,26 @@ const styles = StyleSheet.create({
   checklistSummary: {
     fontSize: 13,
     color: '#666',
+  },
+  checklistSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 4,
+  },
+  uncheckAllButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#f0f0f0',
+  },
+  uncheckAllButtonDisabled: {
+    opacity: 0.5,
+  },
+  uncheckAllButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#555',
   },
   checklistRow: {
     flexDirection: 'row',

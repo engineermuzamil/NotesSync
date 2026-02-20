@@ -93,12 +93,38 @@ export default function NotesListScreen() {
 
   const handleNoteLongPress = (note: Note): void => {
     if (showArchived) {
-      Alert.alert('Archived Note', `Choose action for "${note.title || 'Untitled'}"`, [
+      Alert.alert(
+        'Archived Note',
+        `Choose action for "${note.title || 'Untitled'}"`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Restore',
+            onPress: async () => {
+              await handleRestoreNote(note)
+            },
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              await handleDeleteNote(note)
+            },
+          },
+        ]
+      )
+      return
+    }
+
+    Alert.alert(
+      'Note Actions',
+      `Choose action for "${note.title || 'Untitled'}"`,
+      [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Restore',
+          text: 'Archive',
           onPress: async () => {
-            await handleRestoreNote(note)
+            await handleArchiveNote(note)
           },
         },
         {
@@ -108,26 +134,8 @@ export default function NotesListScreen() {
             await handleDeleteNote(note)
           },
         },
-      ])
-      return
-    }
-
-    Alert.alert('Note Actions', `Choose action for "${note.title || 'Untitled'}"`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Archive',
-        onPress: async () => {
-          await handleArchiveNote(note)
-        },
-      },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await handleDeleteNote(note)
-        },
-      },
-    ])
+      ]
+    )
   }
 
   const handleToggleArchived = (): void => {
@@ -200,9 +208,14 @@ export default function NotesListScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{showArchived ? 'Archived' : 'Notes'}</Text>
+        <Text style={styles.headerTitle}>
+          {showArchived ? 'Archived' : 'Notes'}
+        </Text>
         <View style={styles.headerRightActions}>
-          <Pressable style={styles.archiveToggleButton} onPress={handleToggleArchived}>
+          <Pressable
+            style={styles.archiveToggleButton}
+            onPress={handleToggleArchived}
+          >
             <Text style={styles.archiveToggleText}>
               {showArchived ? 'Show Notes' : 'Show Archived'}
             </Text>
