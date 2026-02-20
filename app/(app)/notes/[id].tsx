@@ -84,10 +84,33 @@ export default function NoteEditorScreen() {
       .join('\n')
   }
 
+  const parseBulletBody = (text: string): { content: string }[] => {
+    const lines = text.split('\n')
+    const items = lines
+      .filter((line) => line.trim().length > 0)
+      .map((line) => {
+        const content = line.replace(/^\s*•\s*/, '')
+        return { content }
+      })
+
+    return items.length > 0 ? items : [{ content: '' }]
+  }
+
+  const serializeBulletBody = (items: { content: string }[]): string => {
+    return items
+      .map((item) => `• ${item.content}`)
+      .join('\n')
+  }
+
   const checklistItems = useMemo(() => {
     if (noteType !== 'checklist')
       return [] as { checked: boolean; content: string }[]
     return parseChecklistBody(body)
+  }, [body, noteType])
+
+  const bulletItems = useMemo(() => {
+    if (noteType !== 'bullets') return [] as { content: string }[]
+    return parseBulletBody(body)
   }, [body, noteType])
 
   const completedChecklistCount = useMemo(() => {
@@ -245,6 +268,47 @@ export default function NoteEditorScreen() {
       (_, itemIndex) => itemIndex !== index
     )
     const nextBody = serializeChecklistBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
+  }
+
+  const handleBulletTextChange = (index: number, text: string): void => {
+    if (noteType !== 'bullets') return
+
+    const nextItems = bulletItems.map((item, itemIndex) => {
+      if (itemIndex !== index) return item
+      return {
+        ...item,
+        content: text,
+      }
+    })
+
+    const nextBody = serializeBulletBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
+  }
+
+  const handleBulletAddItem = (): void => {
+    if (noteType !== 'bullets') return
+
+    const nextItems = [...bulletItems, { content: '' }]
+    const nextBody = serializeBulletBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
+  }
+
+  const handleBulletKeyPress = (index: number, key: string): void => {
+    if (noteType !== 'bullets') return
+    if (key !== 'Backspace') return
+
+    const currentItem = bulletItems[index]
+    if (!currentItem || currentItem.content.length > 0) return
+    if (bulletItems.length <= 1) return
+
+    const nextItems = bulletItems.filter(
+      (_, itemIndex) => itemIndex !== index
+    )
+    const nextBody = serializeBulletBody(nextItems)
     setBody(nextBody)
     debouncedSave(title, nextBody, isPinned, noteType)
   }
@@ -414,6 +478,33 @@ export default function NoteEditorScreen() {
               <Text style={styles.addChecklistItemText}>+ Add item</Text>
             </Pressable>
           </View>
+        ) : noteType === 'bullets' ? (
+          <View style={styles.bulletContainer}>
+            {bulletItems.map((item, index) => (
+              <View key={String(index)} style={styles.bulletRow}>
+                <Text style={styles.bulletPrefix}>•</Text>
+
+                <TextInput
+                  style={styles.bulletInput}
+                  value={item.content}
+                  onChangeText={(text) => handleBulletTextChange(index, text)}
+                  onKeyPress={({ nativeEvent }) =>
+                    handleBulletKeyPress(index, nativeEvent.key)
+                  }
+                  placeholder={`Bullet item ${index + 1}`}
+                  placeholderTextColor="#999"
+                  multiline
+                />
+              </View>
+            ))}
+
+            <Pressable
+              style={styles.addBulletItemButton}
+              onPress={handleBulletAddItem}
+            >
+              <Text style={styles.addBulletItemText}>+ Add bullet</Text>
+            </Pressable>
+          </View>
         ) : (
           <TextInput
             style={styles.bodyInput}
@@ -577,6 +668,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#eef5ff',
   },
   addChecklistItemText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  bulletContainer: {
+    gap: 10,
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  bulletPrefix: {
+    fontSize: 18,
+    color: '#333',
+    paddingTop: 4,
+    paddingHorizontal: 2,
+  },
+  bulletInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    lineHeight: 24,
+    paddingVertical: 4,
+  },
+  addBulletItemButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#eef5ff',
+  },
+  addBulletItemText: {
     color: '#007AFF',
     fontSize: 14,
     fontWeight: '600',
