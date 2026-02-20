@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect } from 'react'
 
 export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([])
+  const [archivedNotes, setArchivedNotes] = useState<Note[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const user = useAuthStore((state) => state.user)
 
@@ -23,6 +24,21 @@ export function useNotes() {
       setNotes([])
     } finally {
       setIsLoading(false)
+    }
+  }, [user])
+
+  const loadArchivedNotes = useCallback(async (): Promise<void> => {
+    if (!user) {
+      setArchivedNotes([])
+      return
+    }
+
+    try {
+      const fetchedNotes = notesDb.getArchivedNotes(user.id)
+      setArchivedNotes(fetchedNotes)
+    } catch (error) {
+      console.error('Failed to load archived notes:', error)
+      setArchivedNotes([])
     }
   }, [user])
 
@@ -64,6 +80,24 @@ export function useNotes() {
     return success
   }, [])
 
+  const archiveNote = useCallback(async (id: NoteId): Promise<Note | null> => {
+    const updatedNote = notesDb.updateNote(id, { isArchived: true })
+    if (updatedNote) {
+      setNotes((prev) => prev.filter((note) => note.id !== id))
+      setArchivedNotes((prev) => [updatedNote, ...prev])
+    }
+    return updatedNote
+  }, [])
+
+  const unarchiveNote = useCallback(async (id: NoteId): Promise<Note | null> => {
+    const updatedNote = notesDb.updateNote(id, { isArchived: false })
+    if (updatedNote) {
+      setArchivedNotes((prev) => prev.filter((note) => note.id !== id))
+      setNotes((prev) => [updatedNote, ...prev])
+    }
+    return updatedNote
+  }, [])
+
   const getNoteById = useCallback(
     (id: NoteId): Note | undefined => {
       return notes.find((note) => note.id === id)
@@ -77,11 +111,15 @@ export function useNotes() {
 
   return {
     notes,
+    archivedNotes,
     isLoading,
     loadNotes,
+    loadArchivedNotes,
     createNote,
     updateNote,
     deleteNote,
+    archiveNote,
+    unarchiveNote,
     getNoteById,
   }
 }
