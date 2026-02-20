@@ -15,14 +15,29 @@ import {
 } from 'react-native'
 
 export default function NotesListScreen() {
-  const { notes, isLoading, loadNotes, createNote, deleteNote } = useNotes()
+  const {
+    notes,
+    archivedNotes,
+    isLoading,
+    loadNotes,
+    loadArchivedNotes,
+    createNote,
+    deleteNote,
+    archiveNote,
+    unarchiveNote,
+  } = useNotes()
   const { logout } = useAuthStore()
   const [isCreating, setIsCreating] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
 
   useFocusEffect(
     useCallback(() => {
-      loadNotes()
-    }, [loadNotes])
+      if (showArchived) {
+        loadArchivedNotes()
+      } else {
+        loadNotes()
+      }
+    }, [loadArchivedNotes, loadNotes, showArchived])
   )
 
   const handleLogout = async (): Promise<void> => {
@@ -64,17 +79,67 @@ export default function NotesListScreen() {
     handleCreateNote()
   }
 
-  const handleDeleteNote = (note: Note): void => {
-    Alert.alert('Delete Note', `Delete "${note.title}"?`, [
+  const handleArchiveNote = async (note: Note): Promise<void> => {
+    await archiveNote(note.id)
+  }
+
+  const handleRestoreNote = async (note: Note): Promise<void> => {
+    await unarchiveNote(note.id)
+  }
+
+  const handleDeleteNote = async (note: Note): Promise<void> => {
+    await deleteNote(note.id)
+  }
+
+  const handleNoteLongPress = (note: Note): void => {
+    if (showArchived) {
+      Alert.alert('Archived Note', `Choose action for "${note.title || 'Untitled'}"`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          onPress: async () => {
+            await handleRestoreNote(note)
+          },
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await handleDeleteNote(note)
+          },
+        },
+      ])
+      return
+    }
+
+    Alert.alert('Note Actions', `Choose action for "${note.title || 'Untitled'}"`, [
       { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Archive',
+        onPress: async () => {
+          await handleArchiveNote(note)
+        },
+      },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await deleteNote(note.id)
+          await handleDeleteNote(note)
         },
       },
     ])
+  }
+
+  const handleToggleArchived = (): void => {
+    const nextShowArchived = !showArchived
+    setShowArchived(nextShowArchived)
+
+    if (nextShowArchived) {
+      loadArchivedNotes()
+      return
+    }
+
+    loadNotes()
   }
 
   const handleNotePress = (noteId: string): void => {
@@ -85,7 +150,7 @@ export default function NotesListScreen() {
     <Pressable
       style={styles.noteCard}
       onPress={() => handleNotePress(item.id)}
-      onLongPress={() => handleDeleteNote(item)}
+      onLongPress={() => handleNoteLongPress(item)}
     >
       <View style={styles.noteHeader}>
         {item.isPinned && <Text style={styles.pinnedBadge}>📌 Pinned</Text>}
@@ -111,10 +176,18 @@ export default function NotesListScreen() {
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>No notes yet</Text>
-      <Text style={styles.emptySubtext}>Tap + to create your first note</Text>
+      <Text style={styles.emptyText}>
+        {showArchived ? 'No archived notes' : 'No notes yet'}
+      </Text>
+      <Text style={styles.emptySubtext}>
+        {showArchived
+          ? 'Long press a note in main list and archive it'
+          : 'Tap + to create your first note'}
+      </Text>
     </View>
   )
+
+  const displayedNotes = showArchived ? archivedNotes : notes
 
   if (isLoading) {
     return (
@@ -127,19 +200,26 @@ export default function NotesListScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notes</Text>
-        <Pressable style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Log Out</Text>
-        </Pressable>
+        <Text style={styles.headerTitle}>{showArchived ? 'Archived' : 'Notes'}</Text>
+        <View style={styles.headerRightActions}>
+          <Pressable style={styles.archiveToggleButton} onPress={handleToggleArchived}>
+            <Text style={styles.archiveToggleText}>
+              {showArchived ? 'Show Notes' : 'Show Archived'}
+            </Text>
+          </Pressable>
+          <Pressable style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Log Out</Text>
+          </Pressable>
+        </View>
       </View>
 
       <FlatList
-        data={notes}
+        data={displayedNotes}
         renderItem={renderNote}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.listContent,
-          notes.length === 0 && styles.listContentEmpty,
+          displayedNotes.length === 0 && styles.listContentEmpty,
         ]}
         ListEmptyComponent={renderEmpty}
       />
@@ -185,6 +265,19 @@ const styles = StyleSheet.create({
   logoutButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  archiveToggleButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  archiveToggleText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '600',
   },
   logoutText: {
     fontSize: 16,
