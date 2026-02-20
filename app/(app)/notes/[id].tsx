@@ -2,7 +2,7 @@ import { getNoteById as getDbNoteById } from '@/src/db/notes'
 import { useNotes } from '@/src/hooks/useNotes'
 import type { NoteId, NoteType } from '@/src/types'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Pressable,
@@ -57,6 +57,43 @@ export default function NoteEditorScreen() {
       })
       .join('\n')
   }
+
+  const parseChecklistBody = (
+    text: string
+  ): { checked: boolean; content: string }[] => {
+    const lines = text.split('\n')
+    const items = lines
+      .filter((line) => line.trim().length > 0)
+      .map((line) => {
+        const checked = /^\s*\[\s?[xX]\]\s*/.test(line)
+        const content = line.replace(/^\s*\[\s?[xX ]\]\s*/, '')
+        return {
+          checked,
+          content,
+        }
+      })
+
+    return items.length > 0 ? items : [{ checked: false, content: '' }]
+  }
+
+  const serializeChecklistBody = (
+    items: { checked: boolean; content: string }[]
+  ): string => {
+    return items
+      .map((item) => `${item.checked ? '[x]' : '[ ]'} ${item.content}`)
+      .join('\n')
+  }
+
+  const checklistItems = useMemo(() => {
+    if (noteType !== 'checklist')
+      return [] as { checked: boolean; content: string }[]
+    return parseChecklistBody(body)
+  }, [body, noteType])
+
+  const completedChecklistCount = useMemo(() => {
+    if (noteType !== 'checklist') return 0
+    return checklistItems.filter((item) => item.checked).length
+  }, [checklistItems, noteType])
 
   // Auto-save with debounce
   const debouncedSave = (
@@ -139,6 +176,63 @@ export default function NoteEditorScreen() {
         body: adaptedBody,
       })
     }
+  }
+
+  const handleChecklistToggle = (index: number): void => {
+    if (noteType !== 'checklist') return
+
+    const nextItems = checklistItems.map((item, itemIndex) => {
+      if (itemIndex !== index) return item
+      return {
+        ...item,
+        checked: !item.checked,
+      }
+    })
+
+    const nextBody = serializeChecklistBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
+  }
+
+  const handleChecklistTextChange = (index: number, text: string): void => {
+    if (noteType !== 'checklist') return
+
+    const nextItems = checklistItems.map((item, itemIndex) => {
+      if (itemIndex !== index) return item
+      return {
+        ...item,
+        content: text,
+      }
+    })
+
+    const nextBody = serializeChecklistBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
+  }
+
+  const handleChecklistAddItem = (): void => {
+    if (noteType !== 'checklist') return
+
+    const nextItems = [...checklistItems, { checked: false, content: '' }]
+    const nextBody = serializeChecklistBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
+  }
+
+  const handleChecklistKeyPress = (index: number, key: string): void => {
+    if (noteType !== 'checklist') return
+    if (key !== 'Backspace') return
+
+    const currentItem = checklistItems[index]
+    if (!currentItem || currentItem.content.length > 0) return
+    if (checklistItems.length <= 1) return
+
+    const nextItems = checklistItems.filter(
+      (_, itemIndex) => itemIndex !== index
+    )
+    const nextBody = serializeChecklistBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
   }
 
   const handleTogglePin = (): void => {
@@ -249,21 +343,62 @@ export default function NoteEditorScreen() {
           autoFocus
         />
 
-        <TextInput
-          style={styles.bodyInput}
-          value={body}
-          onChangeText={handleBodyChange}
-          placeholder={
-            noteType === 'text'
-              ? 'Start writing...'
-              : noteType === 'bullets'
-                ? 'Add bullet lines...'
-                : 'Add checklist lines...'
-          }
-          placeholderTextColor="#999"
-          multiline
-          textAlignVertical="top"
-        />
+        {noteType === 'checklist' ? (
+          <View style={styles.checklistContainer}>
+            <Text style={styles.checklistSummary}>
+              {completedChecklistCount}/{checklistItems.length} completed
+            </Text>
+
+            {checklistItems.map((item, index) => (
+              <View key={String(index)} style={styles.checklistRow}>
+                <Pressable
+                  style={styles.checkToggleButton}
+                  onPress={() => handleChecklistToggle(index)}
+                >
+                  <Text style={styles.checkToggleIcon}>
+                    {item.checked ? '☑' : '☐'}
+                  </Text>
+                </Pressable>
+
+                <TextInput
+                  style={[
+                    styles.checklistInput,
+                    item.checked && styles.checklistInputChecked,
+                  ]}
+                  value={item.content}
+                  onChangeText={(text) =>
+                    handleChecklistTextChange(index, text)
+                  }
+                  onKeyPress={({ nativeEvent }) =>
+                    handleChecklistKeyPress(index, nativeEvent.key)
+                  }
+                  placeholder={`Checklist item ${index + 1}`}
+                  placeholderTextColor="#999"
+                  multiline
+                />
+              </View>
+            ))}
+
+            <Pressable
+              style={styles.addChecklistItemButton}
+              onPress={handleChecklistAddItem}
+            >
+              <Text style={styles.addChecklistItemText}>+ Add item</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <TextInput
+            style={styles.bodyInput}
+            value={body}
+            onChangeText={handleBodyChange}
+            placeholder={
+              noteType === 'text' ? 'Start writing...' : 'Add bullet lines...'
+            }
+            placeholderTextColor="#999"
+            multiline
+            textAlignVertical="top"
+          />
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -353,6 +488,51 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     minHeight: 200,
     paddingVertical: 8,
+  },
+  checklistContainer: {
+    gap: 10,
+  },
+  checklistSummary: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 4,
+  },
+  checklistRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  checkToggleButton: {
+    paddingTop: 4,
+    paddingHorizontal: 2,
+  },
+  checkToggleIcon: {
+    fontSize: 22,
+    color: '#007AFF',
+  },
+  checklistInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    lineHeight: 24,
+    paddingVertical: 4,
+  },
+  checklistInputChecked: {
+    color: '#8a8a8a',
+    textDecorationLine: 'line-through',
+  },
+  addChecklistItemButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#eef5ff',
+  },
+  addChecklistItemText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   footer: {
     paddingVertical: 12,
