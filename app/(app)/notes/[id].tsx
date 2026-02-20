@@ -97,9 +97,7 @@ export default function NoteEditorScreen() {
   }
 
   const serializeBulletBody = (items: { content: string }[]): string => {
-    return items
-      .map((item) => `• ${item.content}`)
-      .join('\n')
+    return items.map((item) => `• ${item.content}`).join('\n')
   }
 
   const checklistItems = useMemo(() => {
@@ -305,9 +303,31 @@ export default function NoteEditorScreen() {
     if (!currentItem || currentItem.content.length > 0) return
     if (bulletItems.length <= 1) return
 
-    const nextItems = bulletItems.filter(
-      (_, itemIndex) => itemIndex !== index
-    )
+    const nextItems = bulletItems.filter((_, itemIndex) => itemIndex !== index)
+    const nextBody = serializeBulletBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
+  }
+
+  const handleChecklistReorder = (fromIndex: number, toIndex: number): void => {
+    if (noteType !== 'checklist') return
+
+    const nextItems = [...checklistItems]
+    const [movedItem] = nextItems.splice(fromIndex, 1)
+    nextItems.splice(toIndex, 0, movedItem)
+
+    const nextBody = serializeChecklistBody(nextItems)
+    setBody(nextBody)
+    debouncedSave(title, nextBody, isPinned, noteType)
+  }
+
+  const handleBulletReorder = (fromIndex: number, toIndex: number): void => {
+    if (noteType !== 'bullets') return
+
+    const nextItems = [...bulletItems]
+    const [movedItem] = nextItems.splice(fromIndex, 1)
+    nextItems.splice(toIndex, 0, movedItem)
+
     const nextBody = serializeBulletBody(nextItems)
     setBody(nextBody)
     debouncedSave(title, nextBody, isPinned, noteType)
@@ -468,6 +488,31 @@ export default function NoteEditorScreen() {
                   placeholderTextColor="#999"
                   multiline
                 />
+
+                <View style={styles.checklistReorderButtons}>
+                  <Pressable
+                    style={[
+                      styles.reorderButton,
+                      index === 0 && styles.reorderButtonDisabled,
+                    ]}
+                    onPress={() => handleChecklistReorder(index, index - 1)}
+                    disabled={index === 0}
+                  >
+                    <Text style={styles.reorderButtonText}>↑</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.reorderButton,
+                      index === checklistItems.length - 1 &&
+                        styles.reorderButtonDisabled,
+                    ]}
+                    onPress={() => handleChecklistReorder(index, index + 1)}
+                    disabled={index === checklistItems.length - 1}
+                  >
+                    <Text style={styles.reorderButtonText}>↓</Text>
+                  </Pressable>
+                </View>
               </View>
             ))}
 
@@ -495,6 +540,31 @@ export default function NoteEditorScreen() {
                   placeholderTextColor="#999"
                   multiline
                 />
+
+                <View style={styles.bulletReorderButtons}>
+                  <Pressable
+                    style={[
+                      styles.reorderButton,
+                      index === 0 && styles.reorderButtonDisabled,
+                    ]}
+                    onPress={() => handleBulletReorder(index, index - 1)}
+                    disabled={index === 0}
+                  >
+                    <Text style={styles.reorderButtonText}>↑</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.reorderButton,
+                      index === bulletItems.length - 1 &&
+                        styles.reorderButtonDisabled,
+                    ]}
+                    onPress={() => handleBulletReorder(index, index + 1)}
+                    disabled={index === bulletItems.length - 1}
+                  >
+                    <Text style={styles.reorderButtonText}>↓</Text>
+                  </Pressable>
+                </View>
               </View>
             ))}
 
@@ -705,6 +775,30 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  checklistReorderButtons: {
+    flexDirection: 'column',
+    gap: 2,
+  },
+  bulletReorderButtons: {
+    flexDirection: 'column',
+    gap: 2,
+  },
+  reorderButton: {
+    width: 28,
+    height: 24,
+    borderRadius: 4,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderButtonDisabled: {
+    opacity: 0.3,
+  },
+  reorderButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#007AFF',
   },
   footer: {
     paddingVertical: 12,
