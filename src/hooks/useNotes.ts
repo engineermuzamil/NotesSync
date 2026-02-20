@@ -1,7 +1,7 @@
-import { useAuthStore } from '@/src/stores/authStore'
 import * as notesDb from '@/src/db/notes'
+import { useAuthStore } from '@/src/stores/authStore'
 import type { Note, NoteId } from '@/src/types'
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([])
@@ -60,7 +60,10 @@ export function useNotes() {
   )
 
   const updateNote = useCallback(
-    async (id: NoteId, input: notesDb.UpdateNoteInput): Promise<Note | null> => {
+    async (
+      id: NoteId,
+      input: notesDb.UpdateNoteInput
+    ): Promise<Note | null> => {
       const updatedNote = notesDb.updateNote(id, input)
       if (updatedNote) {
         setNotes((prev) =>
@@ -89,14 +92,17 @@ export function useNotes() {
     return updatedNote
   }, [])
 
-  const unarchiveNote = useCallback(async (id: NoteId): Promise<Note | null> => {
-    const updatedNote = notesDb.updateNote(id, { isArchived: false })
-    if (updatedNote) {
-      setArchivedNotes((prev) => prev.filter((note) => note.id !== id))
-      setNotes((prev) => [updatedNote, ...prev])
-    }
-    return updatedNote
-  }, [])
+  const unarchiveNote = useCallback(
+    async (id: NoteId): Promise<Note | null> => {
+      const updatedNote = notesDb.updateNote(id, { isArchived: false })
+      if (updatedNote) {
+        setArchivedNotes((prev) => prev.filter((note) => note.id !== id))
+        setNotes((prev) => [updatedNote, ...prev])
+      }
+      return updatedNote
+    },
+    []
+  )
 
   const getNoteById = useCallback(
     (id: NoteId): Note | undefined => {

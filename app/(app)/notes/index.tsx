@@ -60,6 +60,10 @@ export default function NotesListScreen() {
     }
   }
 
+  const handleFabPress = (): void => {
+    handleCreateNote()
+  }
+
   const handleDeleteNote = (note: Note): void => {
     Alert.alert('Delete Note', `Delete "${note.title}"?`, [
       { text: 'Cancel', style: 'cancel' },
@@ -142,7 +146,7 @@ export default function NotesListScreen() {
 
       <Pressable
         style={[styles.fab, isCreating && styles.fabDisabled]}
-        onPress={handleCreateNote}
+        onPress={handleFabPress}
         disabled={isCreating}
       >
         <Text style={styles.fabText}>+</Text>

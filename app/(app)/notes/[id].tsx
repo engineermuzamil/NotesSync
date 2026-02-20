@@ -1,6 +1,6 @@
 import { getNoteById as getDbNoteById } from '@/src/db/notes'
 import { useNotes } from '@/src/hooks/useNotes'
-import type { NoteId } from '@/src/types'
+import type { NoteId, NoteType } from '@/src/types'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -24,14 +24,46 @@ export default function NoteEditorScreen() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [isPinned, setIsPinned] = useState(false)
+  const [noteType, setNoteType] = useState<NoteType>('text')
 
   const saveTimeoutRef = useRef<number | null>(null)
+
+  const normalizeLine = (line: string): string => {
+    return line.replace(/^\s*(•\s+|\[\s?[xX ]\]\s+)/, '')
+  }
+
+  const adaptBodyForType = (text: string, type: NoteType): string => {
+    const lines = text.split('\n')
+
+    if (type === 'text') {
+      return lines.map((line) => normalizeLine(line)).join('\n')
+    }
+
+    if (type === 'bullets') {
+      return lines
+        .map((line) => {
+          if (line.trim().length === 0) return ''
+          const normalized = normalizeLine(line)
+          return `• ${normalized}`
+        })
+        .join('\n')
+    }
+
+    return lines
+      .map((line) => {
+        if (line.trim().length === 0) return ''
+        const normalized = normalizeLine(line)
+        return `[ ] ${normalized}`
+      })
+      .join('\n')
+  }
 
   // Auto-save with debounce
   const debouncedSave = (
     newTitle: string,
     newBody: string,
-    newIsPinned: boolean
+    newIsPinned: boolean,
+    newType: NoteType
   ): void => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
@@ -43,6 +75,7 @@ export default function NoteEditorScreen() {
           title: newTitle,
           body: newBody,
           isPinned: newIsPinned,
+          type: newType,
         })
       }
     }, 500) as unknown as number
@@ -62,6 +95,7 @@ export default function NoteEditorScreen() {
       setTitle('')
       setBody('')
       setIsPinned(false)
+      setNoteType('text')
       return
     }
 
@@ -72,22 +106,39 @@ export default function NoteEditorScreen() {
       setTitle('')
       setBody('')
       setIsPinned(false)
+      setNoteType('text')
       return
     }
 
     setTitle(loadedNote.title)
     setBody(loadedNote.body ?? '')
     setIsPinned(loadedNote.isPinned)
+    setNoteType(loadedNote.type)
   }, [noteId])
 
   const handleTitleChange = (text: string): void => {
     setTitle(text)
-    debouncedSave(text, body, isPinned)
+    debouncedSave(text, body, isPinned, noteType)
   }
 
   const handleBodyChange = (text: string): void => {
     setBody(text)
-    debouncedSave(title, text, isPinned)
+    debouncedSave(title, text, isPinned, noteType)
+  }
+
+  const handleTypeChange = (type: NoteType): void => {
+    if (type === noteType) return
+
+    const adaptedBody = adaptBodyForType(body, type)
+    setNoteType(type)
+    setBody(adaptedBody)
+
+    if (noteId) {
+      updateNote(noteId, {
+        type,
+        body: adaptedBody,
+      })
+    }
   }
 
   const handleTogglePin = (): void => {
@@ -156,6 +207,38 @@ export default function NoteEditorScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
       >
+        <View style={styles.typeSwitchRow}>
+          <Pressable
+            style={[
+              styles.typeSwitchButton,
+              noteType === 'text' && styles.typeSwitchButtonActive,
+            ]}
+            onPress={() => handleTypeChange('text')}
+          >
+            <Text style={styles.typeSwitchIcon}>📝</Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.typeSwitchButton,
+              noteType === 'bullets' && styles.typeSwitchButtonActive,
+            ]}
+            onPress={() => handleTypeChange('bullets')}
+          >
+            <Text style={styles.typeSwitchIcon}>•</Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.typeSwitchButton,
+              noteType === 'checklist' && styles.typeSwitchButtonActive,
+            ]}
+            onPress={() => handleTypeChange('checklist')}
+          >
+            <Text style={styles.typeSwitchIcon}>✓</Text>
+          </Pressable>
+        </View>
+
         <TextInput
           style={styles.titleInput}
           value={title}
@@ -170,7 +253,13 @@ export default function NoteEditorScreen() {
           style={styles.bodyInput}
           value={body}
           onChangeText={handleBodyChange}
-          placeholder="Start writing..."
+          placeholder={
+            noteType === 'text'
+              ? 'Start writing...'
+              : noteType === 'bullets'
+                ? 'Add bullet lines...'
+                : 'Add checklist lines...'
+          }
           placeholderTextColor="#999"
           multiline
           textAlignVertical="top"
@@ -227,6 +316,29 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+  },
+  typeSwitchRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    gap: 8,
+  },
+  typeSwitchButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    backgroundColor: '#fff',
+  },
+  typeSwitchButtonActive: {
+    backgroundColor: '#e9f2ff',
+    borderColor: '#007AFF',
+  },
+  typeSwitchIcon: {
+    fontSize: 20,
+    color: '#333',
   },
   titleInput: {
     fontSize: 28,
