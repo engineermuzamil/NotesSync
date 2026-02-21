@@ -1,5 +1,9 @@
 import { create } from 'zustand'
 import * as authService from '../services/authService'
+import {
+  registerBackgroundSync,
+  unregisterBackgroundSync,
+} from '../services/backgroundSync'
 import * as sessionService from '../services/sessionService'
 import type { AuthUser } from '../types'
 
@@ -29,6 +33,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     const { user, session } = await authService.loginWithEmail(email, password)
     await sessionService.saveSession(session.accessToken, session.refreshToken)
     set({ user, isAuthenticated: true })
+    await registerBackgroundSync()
   },
 
   register: async (email: string, password: string) => {
@@ -38,9 +43,11 @@ export const useAuthStore = create<AuthStore>((set) => ({
     )
     await sessionService.saveSession(session.accessToken, session.refreshToken)
     set({ user, isAuthenticated: true })
+    await registerBackgroundSync()
   },
 
   logout: async () => {
+    await unregisterBackgroundSync()
     await sessionService.clearSession()
     await authService.logout()
     set({ user: null, isAuthenticated: false })
