@@ -247,7 +247,9 @@ export function updateNoteSyncStatus(
 /**
  * Upsert a note from remote sync (used during pull)
  */
-export function upsertNoteFromRemote(note: Omit<Note, 'syncStatus' | 'syncError' | 'retryCount'>): void {
+export function upsertNoteFromRemote(
+  note: Omit<Note, 'syncStatus' | 'syncError' | 'retryCount'>
+): void {
   const db = getDb()
   const existing = getNoteById(note.id)
 
