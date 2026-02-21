@@ -1,3 +1,4 @@
+import { useNetworkSync } from '@/src/hooks/useNetworkSync'
 import * as authService from '@/src/services/authService'
 import * as sessionService from '@/src/services/sessionService'
 import { useAuthStore } from '@/src/stores/authStore'
@@ -8,6 +9,9 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native'
 export default function AppLayout() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const { isAuthenticated, setUser } = useAuthStore()
+
+  // Enable automatic sync on app foreground and network reconnect
+  useNetworkSync()
 
   useEffect(() => {
     const restoreSession = async (): Promise<void> => {
