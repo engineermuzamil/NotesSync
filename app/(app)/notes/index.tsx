@@ -1,5 +1,7 @@
 import { useNotes } from '@/src/hooks/useNotes'
+import { fullSync } from '@/src/services/syncService'
 import { useAuthStore } from '@/src/stores/authStore'
+import { useSyncStore } from '@/src/stores/syncStore'
 import type { Note } from '@/src/types'
 import { useFocusEffect } from '@react-navigation/native'
 import { router, type Href } from 'expo-router'
@@ -26,7 +28,8 @@ export default function NotesListScreen() {
     archiveNote,
     unarchiveNote,
   } = useNotes()
-  const { logout } = useAuthStore()
+  const { logout, user } = useAuthStore()
+  const { isSyncing, lastSyncedAt, syncError, pendingCount } = useSyncStore()
   const [isCreating, setIsCreating] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
 
@@ -150,6 +153,22 @@ export default function NotesListScreen() {
     loadNotes()
   }
 
+  const handleManualSync = async (): Promise<void> => {
+    if (!user || isSyncing) return
+
+    try {
+      await fullSync(user.id)
+      loadNotes()
+      if (showArchived) {
+        loadArchivedNotes()
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Sync failed'
+      Alert.alert('Sync Error', errorMessage)
+    }
+  }
+
   const handleNotePress = (noteId: string): void => {
     router.push(`/(app)/notes/${noteId}` as Href)
   }
@@ -208,10 +227,45 @@ export default function NotesListScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>
-          {showArchived ? 'Archived' : 'Notes'}
-        </Text>
+        <View>
+          <Text style={styles.headerTitle}>
+            {showArchived ? 'Archived' : 'Notes'}
+          </Text>
+          {!showArchived && (
+            <View style={styles.syncStatusRow}>
+              {isSyncing && (
+                <View style={styles.syncingIndicator}>
+                  <ActivityIndicator size="small" color="#007AFF" />
+                  <Text style={styles.syncStatusText}>Syncing...</Text>
+                </View>
+              )}
+              {!isSyncing && lastSyncedAt && (
+                <Text style={styles.syncStatusText}>
+                  Last synced: {new Date(lastSyncedAt).toLocaleTimeString()}
+                </Text>
+              )}
+              {syncError && (
+                <Text style={styles.syncErrorText}>Sync failed</Text>
+              )}
+              {pendingCount > 0 && !isSyncing && (
+                <Text style={styles.pendingText}>{pendingCount} pending</Text>
+              )}
+            </View>
+          )}
+        </View>
         <View style={styles.headerRightActions}>
+          {!showArchived && (
+            <Pressable
+              style={[
+                styles.syncButton,
+                isSyncing && styles.syncButtonDisabled,
+              ]}
+              onPress={handleManualSync}
+              disabled={isSyncing}
+            >
+              <Text style={styles.syncButtonText}>🔄</Text>
+            </Pressable>
+          )}
           <Pressable
             style={styles.archiveToggleButton}
             onPress={handleToggleArchived}
@@ -296,6 +350,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FF3B30',
     fontWeight: '600',
+  },
+  syncStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 8,
+  },
+  syncingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  syncStatusText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  syncErrorText: {
+    fontSize: 12,
+    color: '#FF3B30',
+    fontWeight: '600',
+  },
+  pendingText: {
+    fontSize: 12,
+    color: '#FF9500',
+    fontWeight: '600',
+  },
+  syncButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  syncButtonDisabled: {
+    opacity: 0.5,
+  },
+  syncButtonText: {
+    fontSize: 20,
   },
   listContent: {
     padding: 16,
