@@ -1,19 +1,32 @@
-import { useEffect, useRef } from 'react'
-import { AppState, AppStateStatus } from 'react-native'
-import NetInfo from '@react-native-community/netinfo'
+import { getPendingNotes } from '@/src/db/notes'
+import { getLastSyncedAt } from '@/src/db/syncMeta'
 import { fullSync } from '@/src/services/syncService'
 import { useAuthStore } from '@/src/stores/authStore'
+import { useSyncStore } from '@/src/stores/syncStore'
+import NetInfo from '@react-native-community/netinfo'
+import { useEffect, useRef } from 'react'
+import { AppState, AppStateStatus } from 'react-native'
 
 /**
  * Hook that automatically triggers sync on app foreground and network reconnect
  */
 export function useNetworkSync(): void {
   const user = useAuthStore((state) => state.user)
+  const { setSyncSuccess, setPendingCount } = useSyncStore()
   const appState = useRef(AppState.currentState)
   const isOnline = useRef(true)
 
   useEffect(() => {
     if (!user) return
+
+    // Initialize sync store with persisted state
+    const lastSyncedAt = getLastSyncedAt()
+    if (lastSyncedAt) {
+      setSyncSuccess(lastSyncedAt)
+    }
+
+    const pendingNotes = getPendingNotes(user.id)
+    setPendingCount(pendingNotes.length)
 
     // Handle app state changes (foreground/background)
     const handleAppStateChange = (nextAppState: AppStateStatus): void => {
@@ -62,5 +75,5 @@ export function useNetworkSync(): void {
       appStateSubscription.remove()
       unsubscribeNetInfo()
     }
-  }, [user])
+  }, [user, setSyncSuccess, setPendingCount])
 }

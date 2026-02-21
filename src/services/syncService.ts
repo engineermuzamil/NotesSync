@@ -1,12 +1,13 @@
-import type { Note, UserId } from '@/src/types'
 import { supabase } from '@/src/config/supabase'
 import {
+  getNoteById,
   getPendingNotes,
   updateNoteSyncStatus,
   upsertNoteFromRemote,
-  getNoteById,
 } from '@/src/db/notes'
 import { getLastSyncedAt, setLastSyncedAt } from '@/src/db/syncMeta'
+import { useSyncStore } from '@/src/stores/syncStore'
+import type { Note, UserId } from '@/src/types'
 
 const MAX_RETRY_COUNT = 5
 
@@ -96,6 +97,9 @@ export async function pushChanges(userId: UserId): Promise<{
   const errors: string[] = []
   let successCount = 0
 
+  // Update pending count in store
+  useSyncStore.getState().setPendingCount(pendingNotes.length)
+
   for (const note of pendingNotes) {
     // Skip notes that exceeded max retry count
     if (note.retryCount >= MAX_RETRY_COUNT) {
@@ -123,6 +127,10 @@ export async function pushChanges(userId: UserId): Promise<{
       errors.push(`Failed to sync note ${note.id}: ${errorMessage}`)
     }
   }
+
+  // Update pending count after push
+  const remainingPending = getPendingNotes(userId)
+  useSyncStore.getState().setPendingCount(remainingPending.length)
 
   return {
     success: errors.length === 0,
@@ -199,7 +207,8 @@ export async function pullChanges(userId: UserId): Promise<{
       errors,
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
     errors.push(`Pull sync failed: ${errorMessage}`)
     return {
       success: false,
@@ -215,23 +224,38 @@ export async function pullChanges(userId: UserId): Promise<{
 export async function fullSync(userId: UserId): Promise<SyncResult> {
   const errors: string[] = []
 
-  // Step 1: Push local changes
-  const pushResult = await pushChanges(userId)
-  errors.push(...pushResult.errors)
+  // Mark sync as started
+  useSyncStore.getState().setSyncing(true)
 
-  // Step 2: Pull remote changes
-  const pullResult = await pullChanges(userId)
-  errors.push(...pullResult.errors)
+  try {
+    // Step 1: Push local changes
+    const pushResult = await pushChanges(userId)
+    errors.push(...pushResult.errors)
 
-  // Step 3: Update last synced timestamp if both succeeded
-  if (pushResult.success && pullResult.success) {
-    setLastSyncedAt(new Date().toISOString())
-  }
+    // Step 2: Pull remote changes
+    const pullResult = await pullChanges(userId)
+    errors.push(...pullResult.errors)
 
-  return {
-    success: pushResult.success && pullResult.success,
-    pushedCount: pushResult.count,
-    pulledCount: pullResult.count,
-    errors,
+    // Step 3: Update last synced timestamp if both succeeded
+    if (pushResult.success && pullResult.success) {
+      const now = new Date().toISOString()
+      setLastSyncedAt(now)
+      useSyncStore.getState().setSyncSuccess(now)
+    } else {
+      const errorMessage = errors.join('; ')
+      useSyncStore.getState().setSyncError(errorMessage)
+    }
+
+    return {
+      success: pushResult.success && pullResult.success,
+      pushedCount: pushResult.count,
+      pulledCount: pullResult.count,
+      errors,
+    }
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
+    useSyncStore.getState().setSyncError(errorMessage)
+    throw error
   }
 }
