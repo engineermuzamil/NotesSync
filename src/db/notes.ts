@@ -202,3 +202,94 @@ export function deleteNote(id: NoteId): boolean {
 
   return true
 }
+
+/**
+ * Get all notes that need to be synced to remote (pending or failed status)
+ */
+export function getPendingNotes(userId: UserId): Note[] {
+  const db = getDb()
+  const rows = db.getAllSync<NoteRow>(
+    `SELECT * FROM notes
+     WHERE user_id = ? AND sync_status IN ('pending', 'failed')
+     ORDER BY updated_at ASC`,
+    userId
+  )
+  return rows.map(rowToNote)
+}
+
+/**
+ * Update sync status after successful/failed sync attempt
+ */
+export function updateNoteSyncStatus(
+  id: NoteId,
+  status: 'synced' | 'failed',
+  error: string | null = null,
+  remoteUpdatedAt: string | null = null
+): void {
+  const db = getDb()
+  const retryIncrement = status === 'failed' ? 1 : 0
+
+  db.runSync(
+    `UPDATE notes SET
+      sync_status = ?,
+      sync_error = ?,
+      remote_updated_at = ?,
+      retry_count = retry_count + ?
+     WHERE id = ?`,
+    status,
+    error,
+    remoteUpdatedAt,
+    retryIncrement,
+    id
+  )
+}
+
+/**
+ * Upsert a note from remote sync (used during pull)
+ */
+export function upsertNoteFromRemote(note: Omit<Note, 'syncStatus' | 'syncError' | 'retryCount'>): void {
+  const db = getDb()
+  const existing = getNoteById(note.id)
+
+  if (!existing) {
+    // Insert new note from remote with synced status
+    db.runSync(
+      `INSERT INTO notes (
+        id, user_id, type, title, body, is_pinned, is_archived, is_deleted,
+        color_label, created_at, updated_at, sync_status, sync_error,
+        remote_updated_at, retry_count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', NULL, ?, 0)`,
+      note.id,
+      note.userId,
+      note.type,
+      note.title,
+      note.body,
+      note.isPinned ? 1 : 0,
+      note.isArchived ? 1 : 0,
+      note.isDeleted ? 1 : 0,
+      note.colorLabel,
+      note.createdAt,
+      note.updatedAt,
+      note.remoteUpdatedAt
+    )
+  } else {
+    // Update existing note with remote data
+    db.runSync(
+      `UPDATE notes SET
+        type = ?, title = ?, body = ?, is_pinned = ?, is_archived = ?,
+        is_deleted = ?, color_label = ?, updated_at = ?,
+        sync_status = 'synced', sync_error = NULL, remote_updated_at = ?
+       WHERE id = ?`,
+      note.type,
+      note.title,
+      note.body,
+      note.isPinned ? 1 : 0,
+      note.isArchived ? 1 : 0,
+      note.isDeleted ? 1 : 0,
+      note.colorLabel,
+      note.updatedAt,
+      note.remoteUpdatedAt,
+      note.id
+    )
+  }
+}
