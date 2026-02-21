@@ -1,5 +1,6 @@
 import { useNetworkSync } from '@/src/hooks/useNetworkSync'
 import * as authService from '@/src/services/authService'
+import { registerBackgroundSync } from '@/src/services/backgroundSync'
 import * as sessionService from '@/src/services/sessionService'
 import { useAuthStore } from '@/src/stores/authStore'
 import { Redirect, Stack } from 'expo-router'
@@ -22,6 +23,8 @@ export default function AppLayout() {
           const user = await authService.getCurrentUser()
           if (user) {
             setUser(user)
+            // Register background sync after successful auth
+            await registerBackgroundSync()
           }
         }
       } catch {
