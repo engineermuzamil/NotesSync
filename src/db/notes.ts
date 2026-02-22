@@ -227,19 +227,23 @@ export function updateNoteSyncStatus(
   remoteUpdatedAt: string | null = null
 ): void {
   const db = getDb()
-  const retryIncrement = status === 'failed' ? 1 : 0
+  const maxRetryCount = 5
 
   db.runSync(
     `UPDATE notes SET
       sync_status = ?,
       sync_error = ?,
       remote_updated_at = ?,
-      retry_count = retry_count + ?
+      retry_count = CASE
+        WHEN ? = 'failed' THEN MIN(retry_count + 1, ?)
+        ELSE retry_count
+      END
      WHERE id = ?`,
     status,
     error,
     remoteUpdatedAt,
-    retryIncrement,
+    status,
+    maxRetryCount,
     id
   )
 }

@@ -12,9 +12,10 @@ import { AppState, AppStateStatus } from 'react-native'
  */
 export function useNetworkSync(): void {
   const user = useAuthStore((state) => state.user)
-  const { setSyncSuccess, setPendingCount } = useSyncStore()
+  const { setSyncSuccess, setPendingCount, setSyncError } = useSyncStore()
   const appState = useRef(AppState.currentState)
-  const isOnline = useRef(true)
+  const isOnline = useRef(false)
+  const isSyncInProgress = useRef(false)
 
   useEffect(() => {
     if (!user) return
@@ -28,6 +29,34 @@ export function useNetworkSync(): void {
     const pendingNotes = getPendingNotes(user.id)
     setPendingCount(pendingNotes.length)
 
+    const triggerSync = (reason: string): void => {
+      if (!isOnline.current || isSyncInProgress.current) {
+        return
+      }
+
+      isSyncInProgress.current = true
+      fullSync(user.id)
+        .catch((error: unknown) => {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error'
+          setSyncError(`${reason} sync failed: ${errorMessage}`)
+        })
+        .finally(() => {
+          isSyncInProgress.current = false
+        })
+    }
+
+    NetInfo.fetch()
+      .then((state) => {
+        isOnline.current = Boolean(
+          state.isConnected && state.isInternetReachable !== false
+        )
+        triggerSync('Initial')
+      })
+      .catch(() => {
+        isOnline.current = false
+      })
+
     // Handle app state changes (foreground/background)
     const handleAppStateChange = (nextAppState: AppStateStatus): void => {
       // Trigger sync when app comes to foreground
@@ -36,9 +65,7 @@ export function useNetworkSync(): void {
         nextAppState === 'active' &&
         isOnline.current
       ) {
-        fullSync(user.id).catch((error) => {
-          console.error('Foreground sync failed:', error)
-        })
+        triggerSync('Foreground')
       }
 
       appState.current = nextAppState
@@ -47,13 +74,13 @@ export function useNetworkSync(): void {
     // Handle network state changes
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
       const wasOffline = !isOnline.current
-      isOnline.current = state.isConnected ?? false
+      isOnline.current = Boolean(
+        state.isConnected && state.isInternetReachable !== false
+      )
 
       // Trigger sync when network reconnects (only if app is active)
       if (wasOffline && isOnline.current && appState.current === 'active') {
-        fullSync(user.id).catch((error) => {
-          console.error('Reconnect sync failed:', error)
-        })
+        triggerSync('Reconnect')
       }
     })
 
@@ -63,17 +90,10 @@ export function useNetworkSync(): void {
       handleAppStateChange
     )
 
-    // Trigger initial sync if online
-    if (isOnline.current) {
-      fullSync(user.id).catch((error) => {
-        console.error('Initial sync failed:', error)
-      })
-    }
-
     // Cleanup
     return () => {
       appStateSubscription.remove()
       unsubscribeNetInfo()
     }
-  }, [user, setSyncSuccess, setPendingCount])
+  }, [user, setSyncSuccess, setPendingCount, setSyncError])
 }

@@ -103,6 +103,9 @@ export async function pushChanges(userId: UserId): Promise<{
   for (const note of pendingNotes) {
     // Skip notes that exceeded max retry count
     if (note.retryCount >= MAX_RETRY_COUNT) {
+      errors.push(
+        `Retry limit reached for note ${note.id} (${MAX_RETRY_COUNT} attempts)`
+      )
       continue
     }
 
@@ -123,7 +126,13 @@ export async function pushChanges(userId: UserId): Promise<{
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error'
-      updateNoteSyncStatus(note.id, 'failed', errorMessage)
+      const nextRetryCount = note.retryCount + 1
+      const finalErrorMessage =
+        nextRetryCount >= MAX_RETRY_COUNT
+          ? `Retry limit reached: ${errorMessage}`
+          : errorMessage
+
+      updateNoteSyncStatus(note.id, 'failed', finalErrorMessage)
       errors.push(`Failed to sync note ${note.id}: ${errorMessage}`)
     }
   }
