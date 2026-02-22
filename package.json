@@ -55,6 +55,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
+    "expo-dev-client": "^6.0.20",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2"
   },
