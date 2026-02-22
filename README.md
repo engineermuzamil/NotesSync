@@ -1,8 +1,40 @@
-# Welcome to your Expo app 👋
+# NotesSync
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+NotesSync is an offline-first note-taking app built as a technical assessment.
+The app prioritizes local reliability by using SQLite as the source of truth and syncing to Supabase in the background.
 
-## Get started
+## Stack
+
+- Expo SDK 51
+- React Native + Expo Router
+- TypeScript (strict mode)
+- expo-sqlite (local source of truth)
+- Supabase JS v2 (remote sync target)
+- Zustand (state)
+- expo-secure-store (auth token storage)
+- @react-native-community/netinfo
+- expo-background-fetch + expo-task-manager
+
+## Architecture
+
+- Local-first writes: all create/update/delete operations are written to SQLite first
+- Sync status per note: `pending | synced | failed`
+- Conflict strategy: Last Write Wins based on `updated_at`
+- Auth: email/password only
+- Background behavior:
+  - Foreground + reconnect triggers full sync (push + pull)
+  - Background fetch triggers push-only sync
+
+## Project Structure
+
+- `app/` route-based screens and layouts
+- `src/db/` SQLite access, migrations, and repositories
+- `src/services/` auth/session/sync/background orchestration
+- `src/stores/` Zustand app state
+- `src/hooks/` UI-facing data and sync hooks
+- `src/types/` shared TypeScript contracts
+
+## Setup
 
 1. Install dependencies
 
@@ -10,41 +42,46 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Start Expo
 
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+3. Run on Android (recommended for assessment)
+   - Use Expo dev build or Android emulator/device
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Phase Progress
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- ✅ Phase 1: Project setup
+- ✅ Phase 2: App shell
+- ✅ Phase 3: Supabase schema
+- ✅ Phase 4: Local database
+- ✅ Phase 5: Auth
+- ✅ Phase 6: Notes core
+- ✅ Phase 7: Sync engine
+- ✅ Phase 8: Offline hardening
+- 🚧 Phase 9: README and cleanup
 
-## Get a fresh project
+## Phase 8 Hardening Summary
 
-When you're ready, run:
+- Connectivity-gated sync startup and reconnect sync behavior
+- Guard against concurrent full sync execution
+- Retry cap enforcement with terminal failed state persistence
+- Monotonic `last_synced_at` updates (prevents timestamp regression)
+- Background sync lifecycle serialization (register/unregister race protection)
+- Runtime console logging removed in sync/background path
 
-```bash
-npm run reset-project
-```
+## Validation Checklist
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+- Create/edit/delete notes while offline and verify local persistence
+- Reconnect network and verify pending changes sync automatically
+- Confirm failed sync entries stop retrying after retry cap
+- Confirm `last_synced_at` only moves forward
+- Verify logout clears session and background sync task lifecycle remains stable
 
-## Learn more
+## Notes for Evaluators
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Priority is architecture and reliability over feature volume
+- Data integrity follows SQLite-first workflow
+- Sync is non-blocking for UI actions
