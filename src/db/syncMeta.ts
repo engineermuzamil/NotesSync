@@ -13,7 +13,23 @@ export function getLastSyncedAt(): string | null {
  * @param timestamp ISO 8601 timestamp string
  */
 export function setLastSyncedAt(timestamp: string): void {
-  setSyncMeta('last_synced_at', timestamp)
+  const currentTimestamp = getLastSyncedAt()
+
+  if (!currentTimestamp) {
+    setSyncMeta('last_synced_at', timestamp)
+    return
+  }
+
+  const currentTime = Date.parse(currentTimestamp)
+  const nextTime = Date.parse(timestamp)
+
+  if (Number.isNaN(nextTime)) {
+    return
+  }
+
+  if (Number.isNaN(currentTime) || nextTime >= currentTime) {
+    setSyncMeta('last_synced_at', timestamp)
+  }
 }
 
 /**
