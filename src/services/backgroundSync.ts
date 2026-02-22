@@ -33,7 +33,6 @@ TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
 
     return BackgroundFetch.BackgroundFetchResult.Failed
   } catch (error) {
-    console.error('Background sync failed:', error)
     return BackgroundFetch.BackgroundFetchResult.Failed
   }
 })
@@ -57,13 +56,10 @@ export async function registerBackgroundSync(): Promise<void> {
           stopOnTerminate: false, // Continue after app termination
           startOnBoot: true, // Start on device boot
         })
-        console.log('Background sync registered')
       }
-    } else {
-      console.warn('Background fetch not available:', status)
     }
   } catch (error) {
-    console.error('Failed to register background sync:', error)
+    return
   }
 }
 
@@ -78,10 +74,9 @@ export async function unregisterBackgroundSync(): Promise<void> {
 
     if (isRegistered) {
       await BackgroundFetch.unregisterTaskAsync(BACKGROUND_SYNC_TASK)
-      console.log('Background sync unregistered')
     }
   } catch (error) {
-    console.error('Failed to unregister background sync:', error)
+    return
   }
 }
 
