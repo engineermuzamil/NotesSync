@@ -227,10 +227,24 @@ export default function NotesListScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>
-            {showArchived ? 'Archived' : 'Notes'}
-          </Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.titleRow}>
+            <Text style={styles.headerTitle}>
+              {showArchived ? 'Archived' : 'Notes'}
+            </Text>
+            {!showArchived && (
+              <Pressable
+                style={[
+                  styles.syncButton,
+                  isSyncing && styles.syncButtonDisabled,
+                ]}
+                onPress={handleManualSync}
+                disabled={isSyncing}
+              >
+                <Text style={styles.syncButtonText}>🔄</Text>
+              </Pressable>
+            )}
+          </View>
           {!showArchived && (
             <View style={styles.syncStatusRow}>
               {isSyncing && (
@@ -254,18 +268,6 @@ export default function NotesListScreen() {
           )}
         </View>
         <View style={styles.headerRightActions}>
-          {!showArchived && (
-            <Pressable
-              style={[
-                styles.syncButton,
-                isSyncing && styles.syncButtonDisabled,
-              ]}
-              onPress={handleManualSync}
-              disabled={isSyncing}
-            >
-              <Text style={styles.syncButtonText}>🔄</Text>
-            </Pressable>
-          )}
           <Pressable
             style={styles.archiveToggleButton}
             onPress={handleToggleArchived}
@@ -316,7 +318,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: '#fff',
     paddingTop: 60,
     paddingBottom: 16,
@@ -324,30 +326,41 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
+  headerLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#000',
   },
-  logoutButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
   headerRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 1,
+    marginLeft: 8,
   },
   archiveToggleButton: {
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 6,
   },
   archiveToggleText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#007AFF',
     fontWeight: '600',
   },
+  logoutButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+  },
   logoutText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#FF3B30',
     fontWeight: '600',
   },
@@ -377,8 +390,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   syncButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
   },
   syncButtonDisabled: {
     opacity: 0.5,

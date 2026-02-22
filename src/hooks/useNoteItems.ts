@@ -23,8 +23,7 @@ export function useNoteItems() {
       const fetchedItems = noteItemsDb.getNoteItems(noteId)
       setItems(fetchedItems)
       setActiveNoteId(noteId)
-    } catch (error) {
-      console.error('Failed to load note items:', error)
+    } catch {
       setItems([])
       setActiveNoteId(noteId)
     } finally {

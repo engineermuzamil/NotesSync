@@ -19,8 +19,7 @@ export function useNotes() {
     try {
       const fetchedNotes = notesDb.getNotes(user.id)
       setNotes(fetchedNotes)
-    } catch (error) {
-      console.error('Failed to load notes:', error)
+    } catch {
       setNotes([])
     } finally {
       setIsLoading(false)
@@ -36,8 +35,7 @@ export function useNotes() {
     try {
       const fetchedNotes = notesDb.getArchivedNotes(user.id)
       setArchivedNotes(fetchedNotes)
-    } catch (error) {
-      console.error('Failed to load archived notes:', error)
+    } catch {
       setArchivedNotes([])
     }
   }, [user])
