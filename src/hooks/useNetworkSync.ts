@@ -12,7 +12,7 @@ import { AppState, AppStateStatus } from 'react-native'
  */
 export function useNetworkSync(): void {
   const user = useAuthStore((state) => state.user)
-  const { setSyncSuccess, setPendingCount } = useSyncStore()
+  const { setSyncSuccess, setPendingCount, setSyncError } = useSyncStore()
   const appState = useRef(AppState.currentState)
   const isOnline = useRef(false)
   const isSyncInProgress = useRef(false)
@@ -36,8 +36,10 @@ export function useNetworkSync(): void {
 
       isSyncInProgress.current = true
       fullSync(user.id)
-        .catch(() => {
-          console.error(`${reason} sync failed`)
+        .catch((error: unknown) => {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error'
+          setSyncError(`${reason} sync failed: ${errorMessage}`)
         })
         .finally(() => {
           isSyncInProgress.current = false
@@ -93,5 +95,5 @@ export function useNetworkSync(): void {
       appStateSubscription.remove()
       unsubscribeNetInfo()
     }
-  }, [user, setSyncSuccess, setPendingCount])
+  }, [user, setSyncSuccess, setPendingCount, setSyncError])
 }
