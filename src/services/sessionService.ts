@@ -20,9 +20,15 @@ function decodeJWT(token: string): JWTPayload | null {
     const parts = token.split('.')
     if (parts.length !== 3) return null
 
-    // Decode the payload (second part)
+    // Decode the payload (second part) using atob for React Native compatibility
     const payload = parts[1]
-    const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'))
+    // Add padding if needed for base64url
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      '='
+    )
+    const decoded = JSON.parse(atob(padded))
 
     return decoded as JWTPayload
   } catch {
