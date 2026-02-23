@@ -47,9 +47,15 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   logout: async () => {
+    // Unregister sync and clear local session first (must succeed)
     await unregisterBackgroundSync()
     await sessionService.clearSession()
-    await authService.logout()
     set({ user: null, isAuthenticated: false })
+
+    // Then attempt remote logout as fire-and-forget (offline-first)
+    // Don't block local logout on network errors
+    authService.logout().catch(() => {
+      // Silently ignore network errors - local logout already happened
+    })
   },
 }))
