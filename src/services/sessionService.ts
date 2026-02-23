@@ -1,10 +1,33 @@
 import * as SecureStore from 'expo-secure-store'
+import type { AuthUser } from '../types'
 
 const AUTH_TOKENS_KEY = 'notessync_auth_tokens'
 
 interface StoredTokens {
   accessToken: string
   refreshToken: string
+}
+
+interface JWTPayload {
+  sub: string
+  email: string
+  iat: number
+  exp: number
+}
+
+function decodeJWT(token: string): JWTPayload | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+
+    // Decode the payload (second part)
+    const payload = parts[1]
+    const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'))
+
+    return decoded as JWTPayload
+  } catch {
+    return null
+  }
 }
 
 export async function saveSession(
@@ -33,6 +56,26 @@ export async function loadSession(): Promise<StoredTokens | null> {
     // If JSON parsing fails, clear corrupted data
     await clearSession()
     return null
+  }
+}
+
+export async function loadUserFromSession(): Promise<AuthUser | null> {
+  const tokens = await loadSession()
+
+  if (!tokens) {
+    return null
+  }
+
+  const payload = decodeJWT(tokens.accessToken)
+
+  if (!payload) {
+    return null
+  }
+
+  return {
+    id: payload.sub,
+    email: payload.email,
+    createdAt: new Date(payload.iat * 1000).toISOString(),
   }
 }
 

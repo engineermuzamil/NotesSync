@@ -1,5 +1,5 @@
 import { supabase } from '../config/supabase'
-import type { AuthUser, AuthResponse } from '../types'
+import type { AuthResponse, AuthUser } from '../types'
 
 export async function registerWithEmail(
   email: string,
@@ -68,11 +68,11 @@ export async function loginWithEmail(
 }
 
 export async function logout(): Promise<void> {
-  const { error } = await supabase.auth.signOut()
-
-  if (error) {
-    throw new Error(error.message)
-  }
+  // Fire-and-forget remote logout for offline-first support
+  // Don't block local logout on network availability
+  supabase.auth.signOut().catch(() => {
+    // Silently ignore network errors - local logout already happened
+  })
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {

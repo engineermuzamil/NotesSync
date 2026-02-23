@@ -1,5 +1,4 @@
 import { useNetworkSync } from '@/src/hooks/useNetworkSync'
-import * as authService from '@/src/services/authService'
 import { registerBackgroundSync } from '@/src/services/backgroundSync'
 import * as sessionService from '@/src/services/sessionService'
 import { useAuthStore } from '@/src/stores/authStore'
@@ -17,15 +16,14 @@ export default function AppLayout() {
   useEffect(() => {
     const restoreSession = async (): Promise<void> => {
       try {
-        const tokens = await sessionService.loadSession()
+        // Trust cached session tokens for offline-first support
+        // Decode JWT to get user info without requiring network
+        const user = await sessionService.loadUserFromSession()
 
-        if (tokens) {
-          const user = await authService.getCurrentUser()
-          if (user) {
-            setUser(user)
-            // Register background sync after successful auth
-            await registerBackgroundSync()
-          }
+        if (user) {
+          setUser(user)
+          // Register background sync after successful auth
+          await registerBackgroundSync()
         }
       } catch {
         // Session restoration failed, user will need to log in
