@@ -1,7 +1,7 @@
 import * as authService from '@/src/services/authService'
 import * as sessionService from '@/src/services/sessionService'
 import { pushChanges } from '@/src/services/syncService'
-import * as BackgroundFetch from 'expo-background-fetch'
+import * as BackgroundTask from 'expo-background-task'
 import * as TaskManager from 'expo-task-manager'
 
 const BACKGROUND_SYNC_TASK = 'background-notes-sync'
@@ -16,31 +16,29 @@ TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
     // Get current user from session
     const tokens = await sessionService.loadSession()
     if (!tokens) {
-      return BackgroundFetch.BackgroundFetchResult.NoData
+      return BackgroundTask.BackgroundTaskResult.Success
     }
 
     const user = await authService.getCurrentUser()
     if (!user) {
-      return BackgroundFetch.BackgroundFetchResult.NoData
+      return BackgroundTask.BackgroundTaskResult.Success
     }
 
     // Perform push-only sync (no pull to save resources)
     const result = await pushChanges(user.id)
 
     if (result.success) {
-      return result.count > 0
-        ? BackgroundFetch.BackgroundFetchResult.NewData
-        : BackgroundFetch.BackgroundFetchResult.NoData
+      return BackgroundTask.BackgroundTaskResult.Success
     }
 
-    return BackgroundFetch.BackgroundFetchResult.Failed
+    return BackgroundTask.BackgroundTaskResult.Failed
   } catch {
-    return BackgroundFetch.BackgroundFetchResult.Failed
+    return BackgroundTask.BackgroundTaskResult.Failed
   }
 })
 
 /**
- * Register background fetch task
+ * Register background sync task
  * Should be called once when the app starts and user is authenticated
  */
 export async function registerBackgroundSync(): Promise<void> {
@@ -55,9 +53,9 @@ export async function registerBackgroundSync(): Promise<void> {
         await unregisterInFlight
       }
 
-      const status = await BackgroundFetch.getStatusAsync()
+      const status = await BackgroundTask.getStatusAsync()
 
-      if (status !== BackgroundFetch.BackgroundFetchStatus.Available) {
+      if (status !== BackgroundTask.BackgroundTaskStatus.Available) {
         return
       }
 
@@ -65,10 +63,8 @@ export async function registerBackgroundSync(): Promise<void> {
         await TaskManager.isTaskRegisteredAsync(BACKGROUND_SYNC_TASK)
 
       if (!isRegistered) {
-        await BackgroundFetch.registerTaskAsync(BACKGROUND_SYNC_TASK, {
+        await BackgroundTask.registerTaskAsync(BACKGROUND_SYNC_TASK, {
           minimumInterval: 60 * 15,
-          stopOnTerminate: false,
-          startOnBoot: true,
         })
       }
     } catch {
@@ -84,7 +80,7 @@ export async function registerBackgroundSync(): Promise<void> {
 }
 
 /**
- * Unregister background fetch task
+ * Unregister background sync task
  * Should be called on logout
  */
 export async function unregisterBackgroundSync(): Promise<void> {
@@ -103,7 +99,7 @@ export async function unregisterBackgroundSync(): Promise<void> {
         await TaskManager.isTaskRegisteredAsync(BACKGROUND_SYNC_TASK)
 
       if (isRegistered) {
-        await BackgroundFetch.unregisterTaskAsync(BACKGROUND_SYNC_TASK)
+        await BackgroundTask.unregisterTaskAsync(BACKGROUND_SYNC_TASK)
       }
     } catch {
       return

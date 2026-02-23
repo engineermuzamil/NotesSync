@@ -13,7 +13,7 @@ The app prioritizes local reliability by using SQLite as the source of truth and
 - Zustand (state)
 - expo-secure-store (auth token storage)
 - @react-native-community/netinfo
-- expo-background-fetch + expo-task-manager
+- expo-background-task + expo-task-manager
 
 ## Architecture
 
@@ -23,7 +23,7 @@ The app prioritizes local reliability by using SQLite as the source of truth and
 - Auth: email/password only
 - Background behavior:
   - Foreground + reconnect triggers full sync (push + pull)
-  - Background fetch triggers push-only sync
+  - Background task triggers push-only sync
 
 ## Project Structure
 
