@@ -1,3 +1,4 @@
+import NetInfo from '@react-native-community/netinfo'
 import { create } from 'zustand'
 import * as authService from '../services/authService'
 import {
@@ -30,18 +31,50 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   login: async (email: string, password: string) => {
-    const { user, session } = await authService.loginWithEmail(email, password)
+    const normalizedEmail = email.trim().toLowerCase()
+    const networkState = await NetInfo.fetch()
+    const isOnline =
+      networkState.isConnected === true &&
+      networkState.isInternetReachable !== false
+
+    if (!isOnline) {
+      const offlineUser = await sessionService.verifyOfflineCredentials(
+        normalizedEmail,
+        password
+      )
+
+      if (!offlineUser) {
+        throw new Error(
+          'First login for this account requires internet. Connect once, then you can log in offline.'
+        )
+      }
+
+      await sessionService.saveOfflineSessionUser(offlineUser)
+      set({ user: offlineUser, isAuthenticated: true })
+      await registerBackgroundSync()
+      return
+    }
+
+    const { user, session } = await authService.loginWithEmail(
+      normalizedEmail,
+      password
+    )
     await sessionService.saveSession(session.accessToken, session.refreshToken)
+    await sessionService.saveOfflineAuthProfile(user, normalizedEmail, password)
+    await sessionService.saveOfflineSessionUser(user)
     set({ user, isAuthenticated: true })
     await registerBackgroundSync()
   },
 
   register: async (email: string, password: string) => {
+    const normalizedEmail = email.trim().toLowerCase()
     const { user, session } = await authService.registerWithEmail(
-      email,
+      normalizedEmail,
       password
     )
     await sessionService.saveSession(session.accessToken, session.refreshToken)
+    await sessionService.saveOfflineAuthProfile(user, normalizedEmail, password)
+    await sessionService.saveOfflineSessionUser(user)
     set({ user, isAuthenticated: true })
     await registerBackgroundSync()
   },

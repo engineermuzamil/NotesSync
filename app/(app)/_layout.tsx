@@ -16,13 +16,18 @@ export default function AppLayout() {
   useEffect(() => {
     const restoreSession = async (): Promise<void> => {
       try {
-        // Trust cached session tokens for offline-first support
-        // Decode JWT to get user info without requiring network
-        const user = await sessionService.loadUserFromSession()
+        const sessionUser = await sessionService.loadUserFromSession()
 
-        if (user) {
-          setUser(user)
+        if (sessionUser) {
+          setUser(sessionUser)
           // Register background sync after successful auth
+          await registerBackgroundSync()
+          return
+        }
+
+        const offlineUser = await sessionService.loadOfflineSessionUser()
+        if (offlineUser) {
+          setUser(offlineUser)
           await registerBackgroundSync()
         }
       } catch {
