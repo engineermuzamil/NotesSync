@@ -1,4 +1,6 @@
+import * as sessionService from '@/src/services/sessionService'
 import { useAuthStore } from '@/src/stores/authStore'
+import NetInfo from '@react-native-community/netinfo'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import {
@@ -52,7 +54,26 @@ export default function LoginScreen() {
     setIsLoading(true)
 
     try {
-      await login(email.trim(), password)
+      const normalizedEmail = email.trim().toLowerCase()
+      const networkState = await NetInfo.fetch()
+      const isOnline =
+        networkState.isConnected === true &&
+        networkState.isInternetReachable !== false
+
+      if (!isOnline) {
+        const hasOfflineProfile =
+          await sessionService.hasOfflineAuthProfileForEmail(normalizedEmail)
+
+        if (!hasOfflineProfile) {
+          Alert.alert(
+            'Offline Login Unavailable',
+            'First login for this account requires internet. Connect once, then you can use offline login on this device.'
+          )
+          return
+        }
+      }
+
+      await login(normalizedEmail, password)
       router.replace('/')
     } catch (error) {
       const errorMessage =
