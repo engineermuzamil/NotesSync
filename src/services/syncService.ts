@@ -1,4 +1,9 @@
 import { supabase } from '@/src/config/supabase'
+import { getDb } from '@/src/db'
+import {
+  getPendingNoteShares,
+  updateNoteShareSyncStatus,
+} from '@/src/db/note-shares'
 import {
   getNoteById,
   getPendingNotes,
@@ -7,7 +12,7 @@ import {
 } from '@/src/db/notes'
 import { getLastSyncedAt, setLastSyncedAt } from '@/src/db/syncMeta'
 import { useSyncStore } from '@/src/stores/syncStore'
-import type { Note, UserId } from '@/src/types'
+import type { Note, NoteShare, ShareId, UserId } from '@/src/types'
 
 const MAX_RETRY_COUNT = 5
 
@@ -85,6 +90,79 @@ function supabaseRowToNote(row: Record<string, unknown>): Note {
   }
 }
 
+function noteShareToSupabaseRow(noteShare: NoteShare): Record<string, unknown> {
+  return {
+    id: noteShare.id,
+    note_id: noteShare.noteId,
+    owner_user_id: noteShare.ownerUserId,
+    token: noteShare.token,
+    visibility: noteShare.visibility,
+    is_revoked: noteShare.isRevoked,
+    created_at: noteShare.createdAt,
+    updated_at: noteShare.updatedAt,
+    revoked_at: noteShare.revokedAt,
+  }
+}
+
+function supabaseRowToNoteShare(row: Record<string, unknown>): NoteShare {
+  return {
+    id: row.id as ShareId,
+    noteId: row.note_id as string,
+    ownerUserId: row.owner_user_id as string,
+    token: row.token as string,
+    visibility: row.visibility as NoteShare['visibility'],
+    isRevoked: row.is_revoked as boolean,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+    revokedAt: row.revoked_at as string | null,
+    syncStatus: 'synced',
+    syncError: null,
+    retryCount: 0,
+  }
+}
+
+function upsertNoteShareFromRemote(noteShare: NoteShare): void {
+  const db = getDb()
+
+  db.runSync(
+    `INSERT INTO note_shares (
+      id, note_id, owner_user_id, token, visibility, is_revoked,
+      access_count, copy_count, last_accessed_at, last_copied_at,
+      created_at, updated_at, revoked_at, sync_status, sync_error, retry_count
+    ) VALUES (?, ?, ?, ?, ?, ?,
+      COALESCE((SELECT access_count FROM note_shares WHERE id = ?), 0),
+      COALESCE((SELECT copy_count FROM note_shares WHERE id = ?), 0),
+      COALESCE((SELECT last_accessed_at FROM note_shares WHERE id = ?), NULL),
+      COALESCE((SELECT last_copied_at FROM note_shares WHERE id = ?), NULL),
+      ?, ?, ?, 'synced', NULL, 0
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      note_id = excluded.note_id,
+      owner_user_id = excluded.owner_user_id,
+      token = excluded.token,
+      visibility = excluded.visibility,
+      is_revoked = excluded.is_revoked,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at,
+      revoked_at = excluded.revoked_at,
+      sync_status = 'synced',
+      sync_error = NULL`,
+    noteShare.id,
+    noteShare.noteId,
+    noteShare.ownerUserId,
+    noteShare.token,
+    noteShare.visibility,
+    noteShare.isRevoked ? 1 : 0,
+    noteShare.id,
+    noteShare.id,
+    noteShare.id,
+    noteShare.id,
+    noteShare.createdAt,
+    noteShare.updatedAt,
+    noteShare.revokedAt
+  )
+}
+
 /**
  * Push local pending changes to Supabase
  */
@@ -94,11 +172,14 @@ export async function pushChanges(userId: UserId): Promise<{
   errors: string[]
 }> {
   const pendingNotes = getPendingNotes(userId)
+  const pendingShares = getPendingNoteShares(userId)
   const errors: string[] = []
   let successCount = 0
 
   // Update pending count in store
-  useSyncStore.getState().setPendingCount(pendingNotes.length)
+  useSyncStore
+    .getState()
+    .setPendingCount(pendingNotes.length + pendingShares.length)
 
   for (const note of pendingNotes) {
     // Skip notes that exceeded max retry count
@@ -137,9 +218,47 @@ export async function pushChanges(userId: UserId): Promise<{
     }
   }
 
+  for (const noteShare of pendingShares) {
+    if (noteShare.retryCount >= MAX_RETRY_COUNT) {
+      errors.push(
+        `Retry limit reached for share ${noteShare.id} (${MAX_RETRY_COUNT} attempts)`
+      )
+      continue
+    }
+
+    try {
+      const row = noteShareToSupabaseRow(noteShare)
+
+      const { error } = await supabase.from('note_shares').upsert(row, {
+        onConflict: 'id',
+      })
+
+      if (error) {
+        throw error
+      }
+
+      updateNoteShareSyncStatus(noteShare.id, 'synced')
+      successCount++
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error'
+      const nextRetryCount = noteShare.retryCount + 1
+      const finalErrorMessage =
+        nextRetryCount >= MAX_RETRY_COUNT
+          ? `Retry limit reached: ${errorMessage}`
+          : errorMessage
+
+      updateNoteShareSyncStatus(noteShare.id, 'failed', finalErrorMessage)
+      errors.push(`Failed to sync share ${noteShare.id}: ${errorMessage}`)
+    }
+  }
+
   // Update pending count after push
   const remainingPending = getPendingNotes(userId)
-  useSyncStore.getState().setPendingCount(remainingPending.length)
+  const remainingPendingShares = getPendingNoteShares(userId)
+  useSyncStore
+    .getState()
+    .setPendingCount(remainingPending.length + remainingPendingShares.length)
 
   return {
     success: errors.length === 0,
@@ -162,51 +281,74 @@ export async function pullChanges(userId: UserId): Promise<{
   try {
     const lastSyncedAt = getLastSyncedAt()
 
-    // Build query
-    let query = supabase
+    let noteQuery = supabase
       .from('notes')
       .select('*')
       .eq('user_id', userId)
       .eq('is_deleted', false)
 
-    // Only fetch notes updated after last sync
     if (lastSyncedAt) {
-      query = query.gt('updated_at', lastSyncedAt)
+      noteQuery = noteQuery.gt('updated_at', lastSyncedAt)
     }
 
-    const { data, error } = await query
+    const { data, error } = await noteQuery
 
     if (error) {
       throw error
     }
 
-    if (!data || data.length === 0) {
-      return { success: true, count: 0, errors: [] }
-    }
+    if (data && data.length > 0) {
+      for (const remoteRow of data) {
+        try {
+          const remoteNote = supabaseRowToNote(remoteRow)
+          const localNote = getNoteById(remoteNote.id)
 
-    // Process each remote note
-    for (const remoteRow of data) {
-      try {
-        const remoteNote = supabaseRowToNote(remoteRow)
-        const localNote = getNoteById(remoteNote.id)
-
-        // If local note exists, resolve conflict
-        if (localNote) {
-          const resolution = resolveConflict(localNote, remoteNote)
-          if (resolution.action === 'use_remote') {
+          if (localNote) {
+            const resolution = resolveConflict(localNote, remoteNote)
+            if (resolution.action === 'use_remote') {
+              upsertNoteFromRemote(remoteNote)
+              pulledCount++
+            }
+          } else {
             upsertNoteFromRemote(remoteNote)
             pulledCount++
           }
-          // If keep_local, do nothing (local wins)
-        } else {
-          // New note from remote, insert it
-          upsertNoteFromRemote(remoteNote)
-          pulledCount++
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error'
+          errors.push(`Failed to merge note ${remoteRow.id}: ${errorMessage}`)
         }
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : 'Unknown error'
-        errors.push(`Failed to merge note ${remoteRow.id}: ${errorMessage}`)
+      }
+    }
+
+    let shareQuery = supabase
+      .from('note_shares')
+      .select('*')
+      .eq('owner_user_id', userId)
+
+    if (lastSyncedAt) {
+      shareQuery = shareQuery.gt('updated_at', lastSyncedAt)
+    }
+
+    const { data: shareData, error: shareError } = await shareQuery
+
+    if (shareError) {
+      throw shareError
+    }
+
+    if (shareData && shareData.length > 0) {
+      for (const remoteShareRow of shareData) {
+        try {
+          const remoteNoteShare = supabaseRowToNoteShare(remoteShareRow)
+          upsertNoteShareFromRemote(remoteNoteShare)
+          pulledCount++
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error'
+          errors.push(
+            `Failed to merge note share ${remoteShareRow.id}: ${errorMessage}`
+          )
+        }
       }
     }
 
