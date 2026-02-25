@@ -1,6 +1,7 @@
 import type {
   NoteId,
   NoteShare,
+  ShareAnalytics,
   ShareId,
   ShareToken,
   UserId,
@@ -60,6 +61,28 @@ function rowToNoteShare(row: NoteShareRow): NoteShare {
   }
 }
 
+function rowToShareAnalytics(row: NoteShareRow): ShareAnalytics {
+  return {
+    shareId: row.id,
+    accessCount: row.access_count,
+    copyCount: row.copy_count,
+    lastAccessedAt: row.last_accessed_at,
+    lastCopiedAt: row.last_copied_at,
+  }
+}
+
+function getPublicActiveShareByToken(token: ShareToken): NoteShareRow | null {
+  const db = getDb()
+  const row = db.getFirstSync<NoteShareRow>(
+    `SELECT * FROM note_shares
+     WHERE token = ? AND visibility = 'public' AND is_revoked = 0
+     LIMIT 1`,
+    token
+  )
+
+  return row ?? null
+}
+
 function getNoteShareByNoteIdInternal(noteId: NoteId): NoteShare | null {
   const db = getDb()
   const row = db.getFirstSync<NoteShareRow>(
@@ -94,6 +117,78 @@ export function getPendingNoteShares(ownerUserId: UserId): NoteShare[] {
   )
 
   return rows.map(rowToNoteShare)
+}
+
+export function getShareAnalyticsByNoteId(
+  noteId: NoteId
+): ShareAnalytics | null {
+  const db = getDb()
+  const row = db.getFirstSync<NoteShareRow>(
+    'SELECT * FROM note_shares WHERE note_id = ? LIMIT 1',
+    noteId
+  )
+
+  return row ? rowToShareAnalytics(row) : null
+}
+
+export function incrementShareAccessByToken(
+  token: ShareToken
+): ShareAnalytics | null {
+  const existing = getPublicActiveShareByToken(token)
+  if (!existing) {
+    return null
+  }
+
+  const db = getDb()
+  const now = nowIso()
+
+  db.runSync(
+    `UPDATE note_shares SET
+      access_count = access_count + 1,
+      last_accessed_at = ?,
+      updated_at = ?
+     WHERE id = ?`,
+    now,
+    now,
+    existing.id
+  )
+
+  const updatedRow = db.getFirstSync<NoteShareRow>(
+    'SELECT * FROM note_shares WHERE id = ? LIMIT 1',
+    existing.id
+  )
+
+  return updatedRow ? rowToShareAnalytics(updatedRow) : null
+}
+
+export function incrementShareCopyByToken(
+  token: ShareToken
+): ShareAnalytics | null {
+  const existing = getPublicActiveShareByToken(token)
+  if (!existing) {
+    return null
+  }
+
+  const db = getDb()
+  const now = nowIso()
+
+  db.runSync(
+    `UPDATE note_shares SET
+      copy_count = copy_count + 1,
+      last_copied_at = ?,
+      updated_at = ?
+     WHERE id = ?`,
+    now,
+    now,
+    existing.id
+  )
+
+  const updatedRow = db.getFirstSync<NoteShareRow>(
+    'SELECT * FROM note_shares WHERE id = ? LIMIT 1',
+    existing.id
+  )
+
+  return updatedRow ? rowToShareAnalytics(updatedRow) : null
 }
 
 export function createOrEnablePublicShare(
