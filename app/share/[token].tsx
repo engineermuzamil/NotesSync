@@ -1,4 +1,8 @@
 import { getEnv } from '@/src/config/env'
+import {
+  incrementShareAccessByToken,
+  incrementShareCopyByToken,
+} from '@/src/db/note-shares'
 import { createNote } from '@/src/db/notes'
 import { loadSession } from '@/src/services/sessionService'
 import { useAuthStore } from '@/src/stores/authStore'
@@ -80,6 +84,8 @@ export default function SharedNotePreviewScreen() {
         setSharedNoteBody(noteBody as string | null)
         setSharedNoteType(noteType)
         setSharedNoteColorLabel(noteColorLabel as string | null)
+
+        incrementShareAccessByToken(shareToken)
       } catch {
         setSharedNoteId(null)
       } finally {
@@ -118,20 +124,7 @@ export default function SharedNotePreviewScreen() {
       return
     }
 
-    const session = await loadSession()
-    if (session) {
-      const shareToken = typeof token === 'string' ? token : ''
-      const env = getEnv()
-      const endpoint = `${env.supabaseUrl}/functions/v1/note-share?token=${encodeURIComponent(shareToken)}`
-      fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          apikey: env.supabaseAnonKey,
-          authorization: `Bearer ${session.accessToken}`,
-          'content-type': 'application/json',
-        },
-      }).catch(() => {})
-    }
+    const shareToken = typeof token === 'string' ? token : ''
 
     const copiedTitle =
       sharedNoteTitle.trim().length > 0
@@ -147,6 +140,24 @@ export default function SharedNotePreviewScreen() {
       isArchived: false,
       colorLabel: sharedNoteColorLabel,
     })
+
+    if (shareToken) {
+      incrementShareCopyByToken(shareToken)
+    }
+
+    const session = await loadSession()
+    if (session && shareToken) {
+      const env = getEnv()
+      const endpoint = `${env.supabaseUrl}/functions/v1/note-share?token=${encodeURIComponent(shareToken)}`
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: env.supabaseAnonKey,
+          authorization: `Bearer ${session.accessToken}`,
+          'content-type': 'application/json',
+        },
+      }).catch(() => {})
+    }
 
     Alert.alert('Copied', 'A new independent copy was saved to your account.', [
       {
