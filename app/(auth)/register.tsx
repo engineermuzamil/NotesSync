@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/src/stores/authStore'
+import NetInfo from '@react-native-community/netinfo'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import {
@@ -57,7 +58,20 @@ export default function RegisterScreen() {
     setIsLoading(true)
 
     try {
+      const networkState = await NetInfo.fetch()
+      const isOnline =
+        networkState.isConnected === true &&
+        networkState.isInternetReachable !== false
+
       await register(email.trim(), password)
+
+      if (!isOnline) {
+        Alert.alert(
+          'Local Account Created',
+          'Created local account on this device. Link to cloud when online.'
+        )
+      }
+
       router.replace('/')
     } catch (error) {
       const errorMessage =
