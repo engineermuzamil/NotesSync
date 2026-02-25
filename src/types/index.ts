@@ -3,10 +3,14 @@
 export type NoteId = string
 export type UserId = string
 export type NoteItemId = string
+export type ShareId = string
+export type ShareToken = string
 
 export type NoteType = 'text' | 'checklist' | 'bullets'
 export type SyncStatus = 'pending' | 'synced' | 'failed'
 export type SyncMetaKey = 'schema_version' | 'last_synced_at' | 'device_id'
+export type ShareVisibility = 'private' | 'public'
+export type ShareSyncStatus = 'pending' | 'synced' | 'failed'
 
 export interface Note {
   id: NoteId
@@ -63,4 +67,35 @@ export interface AuthSession {
 export interface AuthResponse {
   user: AuthUser
   session: AuthSession
+}
+
+export interface NoteShare {
+  id: ShareId
+  noteId: NoteId
+  ownerUserId: UserId
+  token: ShareToken
+  visibility: ShareVisibility
+  isRevoked: boolean
+  createdAt: string
+  updatedAt: string
+  revokedAt: string | null
+  syncStatus: ShareSyncStatus
+  syncError: string | null
+  retryCount: number
+}
+
+export interface ShareAnalytics {
+  shareId: ShareId
+  accessCount: number
+  copyCount: number
+  lastAccessedAt: string | null
+  lastCopiedAt: string | null
+}
+
+export interface PublicSharedNote {
+  shareId: ShareId
+  token: ShareToken
+  note: Note
+  items: NoteItem[]
+  analytics: ShareAnalytics
 }

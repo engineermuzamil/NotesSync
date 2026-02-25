@@ -43,7 +43,18 @@
       ],
       "expo-sqlite",
       "expo-secure-store",
-      "expo-background-task"
+      "expo-background-task",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableHermes": true
+          },
+          "ios": {
+            "enableHermes": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

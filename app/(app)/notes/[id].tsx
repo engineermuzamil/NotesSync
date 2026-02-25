@@ -361,6 +361,15 @@ export default function NoteEditorScreen() {
     router.back()
   }
 
+  const handleOpenShare = (): void => {
+    if (noteId) {
+      router.push({
+        pathname: '/(app)/share-note',
+        params: { noteId },
+      })
+    }
+  }
+
   if (!note) {
     return (
       <View style={styles.errorContainer}>
@@ -380,6 +389,10 @@ export default function NoteEditorScreen() {
         </Pressable>
 
         <View style={styles.headerActions}>
+          <Pressable style={styles.headerButton} onPress={handleOpenShare}>
+            <Text style={styles.headerButtonText}>🔗 Share</Text>
+          </Pressable>
+
           <Pressable style={styles.headerButton} onPress={handleTogglePin}>
             <Text style={styles.headerButtonText}>
               {isPinned ? '📌 Unpin' : '📌 Pin'}
@@ -594,7 +607,6 @@ export default function NoteEditorScreen() {
         <Text style={styles.syncStatus}>
           {note.syncStatus === 'pending' && '⏳ Syncing...'}
           {note.syncStatus === 'synced' && '✓ Synced'}
-          {note.syncStatus === 'failed' && '❌ Sync failed'}
         </Text>
         <Text style={styles.lastUpdated}>
           Last updated: {new Date(note.updatedAt).toLocaleString()}
@@ -677,6 +689,96 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     minHeight: 200,
     paddingVertical: 8,
+  },
+  sharePanel: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#f9f9f9',
+    gap: 10,
+    marginBottom: 16,
+  },
+  shareHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  shareTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  shareStatusText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  shareCreateButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#eef5ff',
+    alignSelf: 'flex-start',
+  },
+  shareCreateButtonText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  shareUrlButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    backgroundColor: '#fff',
+  },
+  shareUrlButtonText: {
+    fontSize: 13,
+    color: '#007AFF',
+  },
+  shareRevokeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#fff0ee',
+    alignSelf: 'flex-start',
+  },
+  shareRevokeButtonText: {
+    fontSize: 13,
+    color: '#FF3B30',
+    fontWeight: '600',
+  },
+  shareHintText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  shareErrorText: {
+    fontSize: 12,
+    color: '#FF3B30',
+  },
+  shareAnalyticsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  shareAnalyticsItem: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  shareAnalyticsValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+  },
+  shareAnalyticsLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
   },
   checklistContainer: {
     gap: 10,
