@@ -1,87 +1,102 @@
 # NotesSync
 
-NotesSync is an offline-first note-taking app built as a technical assessment.
-The app prioritizes local reliability by using SQLite as the source of truth and syncing to Supabase in the background.
+NotesSync is an offline-first note-taking app built with Expo + TypeScript.
+SQLite is the local source of truth. Supabase is used for authentication, cloud sync, and share endpoints.
 
-## Stack
+## How to run the app
 
-- Expo SDK 51
-- React Native + Expo Router
-- TypeScript (strict mode)
-- expo-sqlite (local source of truth)
-- Supabase JS v2 (remote sync target)
-- Zustand (state)
-- expo-secure-store (auth token storage)
-- @react-native-community/netinfo
-- expo-background-task + expo-task-manager
+### 1) Install dependencies
 
-## Architecture
+```bash
+npm install
+```
 
-- Local-first writes: all create/update/delete operations are written to SQLite first
-- Sync status per note: `pending | synced | failed`
-- Conflict strategy: Last Write Wins based on `updated_at`
-- Auth: email/password only
-- Background behavior:
-  - Foreground + reconnect triggers full sync (push + pull)
-  - Background task triggers push-only sync
+### 2) Configure environment variables
 
-## Project Structure
+Create a `.env` file in the project root with:
 
-- `app/` route-based screens and layouts
-- `src/db/` SQLite access, migrations, and repositories
-- `src/services/` auth/session/sync/background orchestration
-- `src/stores/` Zustand app state
-- `src/hooks/` UI-facing data and sync hooks
-- `src/types/` shared TypeScript contracts
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_KEY`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_GOOGLE_CLIENT_ID` (present in env set, not used for auth flow)
 
-## Setup
+### 3) Start development server
 
-1. Install dependencies
+```bash
+npx expo start
+```
 
-   ```bash
-   npm install
-   ```
+### 4) Run target
 
-2. Start Expo
+- Web: press `w` in Expo terminal
+- Android dev: press `a` (emulator) or open on device
+- Lint: `npm run lint`
 
-   ```bash
-   npx expo start
-   ```
+### 5) Build APK (preview)
 
-3. Run on Android (recommended for assessment)
-   - Use Expo dev build or Android emulator/device
+Cloud build:
 
-## Phase Progress
+```bash
+eas build --platform android --profile preview
+```
 
-- ✅ Phase 1: Project setup
-- ✅ Phase 2: App shell
-- ✅ Phase 3: Supabase schema
-- ✅ Phase 4: Local database
-- ✅ Phase 5: Auth
-- ✅ Phase 6: Notes core
-- ✅ Phase 7: Sync engine
-- ✅ Phase 8: Offline hardening
-- 🚧 Phase 9: README and cleanup
+Local build (Linux with Android SDK set up):
 
-## Phase 8 Hardening Summary
+```bash
+eas build --platform android --profile preview --local
+```
 
-- Connectivity-gated sync startup and reconnect sync behavior
-- Guard against concurrent full sync execution
-- Retry cap enforcement with terminal failed state persistence
-- Monotonic `last_synced_at` updates (prevents timestamp regression)
-- Background sync lifecycle serialization (register/unregister race protection)
-- Runtime console logging removed in sync/background path
+## Auth backend used
 
-## Validation Checklist
+- Backend: Supabase Auth
+- Method: email/password only
+- Session tokens stored in `expo-secure-store`
+- Auth client initialized in `src/config/supabase.ts`
 
-- Create/edit/delete notes while offline and verify local persistence
-- Reconnect network and verify pending changes sync automatically
-- Confirm failed sync entries stop retrying after retry cap
-- Confirm `last_synced_at` only moves forward
-- Verify logout clears session and background sync task lifecycle remains stable
+## How sync works
 
-## Notes for Evaluators
+### Local-first write path
 
-- Priority is architecture and reliability over feature volume
-- Data integrity follows SQLite-first workflow
-- Sync is non-blocking for UI actions
+1. All note CRUD writes happen in SQLite first.
+2. Records are marked with `sync_status` (`pending`, `synced`, `failed`).
+3. UI is never blocked by remote sync.
+
+### Sync triggers
+
+- App foreground + online: full sync (push then pull)
+- Network reconnect: full sync (push then pull)
+- Background task: push-focused sync behavior
+
+### Conflict strategy
+
+- Last Write Wins using `updated_at`
+- If local row is still pending, local data is preserved
+
+### Sharing sync
+
+- Public share metadata is stored locally and synced to Supabase
+- Public preview/copy is served by Supabase Edge Function
+
+## Known issues
+
+- Sync status messaging can be noisy or stale in some screens (UI state vs DB timing)
+- Existing migration history has multiple schema iterations; fresh environments must run migrations in order
+- Long free-tier EAS queues slow down build feedback loops
+- Development build requires Metro running; preview build is better for offline testing
+
+## What I would improve with more time
+
+- Add a dedicated sync diagnostics screen with per-entity retry/error details
+- Improve session restoration to explicitly rehydrate Supabase auth session every app launch
+- Normalize migration history into one clean baseline + forward-only migrations
+- Add e2e tests for offline edits, reconnect sync, and share link lifecycle
+- Add stronger telemetry around background sync failures
+
+## Project structure
+
+- `app/`: Expo Router screens/layouts
+- `src/db/`: SQLite repositories and migrations
+- `src/services/`: auth/session/sync/background logic
+- `src/stores/`: Zustand stores
+- `src/hooks/`: app hooks for notes/sync/network
+- `supabase/`: SQL migrations and edge functions
