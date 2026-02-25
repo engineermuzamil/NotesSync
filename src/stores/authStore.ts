@@ -6,13 +6,12 @@ import {
   unregisterBackgroundSync,
 } from '../services/backgroundSync'
 import * as sessionService from '../services/sessionService'
-import type { AuthMode, AuthUser } from '../types'
+import type { AuthUser } from '../types'
 
 interface AuthStore {
   user: AuthUser | null
-  authMode: AuthMode | null
   isAuthenticated: boolean
-  setUser: (user: AuthUser, authMode?: AuthMode) => void
+  setUser: (user: AuthUser) => void
   clearUser: () => void
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
@@ -21,15 +20,14 @@ interface AuthStore {
 
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
-  authMode: null,
   isAuthenticated: false,
 
-  setUser: (user: AuthUser, authMode: AuthMode = 'cloud') => {
-    set({ user, authMode, isAuthenticated: true })
+  setUser: (user: AuthUser) => {
+    set({ user, isAuthenticated: true })
   },
 
   clearUser: () => {
-    set({ user: null, authMode: null, isAuthenticated: false })
+    set({ user: null, isAuthenticated: false })
   },
 
   login: async (email: string, password: string) => {
@@ -52,7 +50,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
       }
 
       await sessionService.saveOfflineSessionUser(offlineUser)
-      set({ user: offlineUser, authMode: 'local', isAuthenticated: true })
+      set({ user: offlineUser, isAuthenticated: true })
+      await registerBackgroundSync()
       return
     }
 
@@ -63,44 +62,12 @@ export const useAuthStore = create<AuthStore>((set) => ({
     await sessionService.saveSession(session.accessToken, session.refreshToken)
     await sessionService.saveOfflineAuthProfile(user, normalizedEmail, password)
     await sessionService.saveOfflineSessionUser(user)
-    set({ user, authMode: 'cloud', isAuthenticated: true })
+    set({ user, isAuthenticated: true })
     await registerBackgroundSync()
   },
 
   register: async (email: string, password: string) => {
     const normalizedEmail = email.trim().toLowerCase()
-
-    const networkState = await NetInfo.fetch()
-    const isOnline =
-      networkState.isConnected === true &&
-      networkState.isInternetReachable !== false
-
-    if (!isOnline) {
-      const hasOfflineProfile =
-        await sessionService.hasOfflineAuthProfileForEmail(normalizedEmail)
-
-      if (hasOfflineProfile) {
-        throw new Error(
-          'An offline account for this email already exists on this device. Please log in instead.'
-        )
-      }
-
-      const offlineUser: AuthUser = {
-        id: `offline-${Date.now().toString(36)}`,
-        email: normalizedEmail,
-        createdAt: new Date().toISOString(),
-      }
-
-      await sessionService.saveOfflineAuthProfile(
-        offlineUser,
-        normalizedEmail,
-        password
-      )
-      await sessionService.saveOfflineSessionUser(offlineUser)
-      set({ user: offlineUser, authMode: 'local', isAuthenticated: true })
-      return
-    }
-
     const { user, session } = await authService.registerWithEmail(
       normalizedEmail,
       password
@@ -108,7 +75,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     await sessionService.saveSession(session.accessToken, session.refreshToken)
     await sessionService.saveOfflineAuthProfile(user, normalizedEmail, password)
     await sessionService.saveOfflineSessionUser(user)
-    set({ user, authMode: 'cloud', isAuthenticated: true })
+    set({ user, isAuthenticated: true })
     await registerBackgroundSync()
   },
 
@@ -116,7 +83,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     // Unregister sync and clear local session first (must succeed)
     await unregisterBackgroundSync()
     await sessionService.clearSession()
-    set({ user: null, authMode: null, isAuthenticated: false })
+    set({ user: null, isAuthenticated: false })
 
     // Then attempt remote logout as fire-and-forget (offline-first)
     // Don't block local logout on network errors

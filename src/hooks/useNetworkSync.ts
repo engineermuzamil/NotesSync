@@ -12,14 +12,13 @@ import { AppState, AppStateStatus } from 'react-native'
  */
 export function useNetworkSync(): void {
   const user = useAuthStore((state) => state.user)
-  const authMode = useAuthStore((state) => state.authMode)
   const { setSyncSuccess, setPendingCount, setSyncError } = useSyncStore()
   const appState = useRef(AppState.currentState)
   const isOnline = useRef(false)
   const isSyncInProgress = useRef(false)
 
   useEffect(() => {
-    if (!user || authMode === 'local') return
+    if (!user) return
 
     // Initialize sync store with persisted state
     const lastSyncedAt = getLastSyncedAt()
@@ -96,5 +95,5 @@ export function useNetworkSync(): void {
       appStateSubscription.remove()
       unsubscribeNetInfo()
     }
-  }, [user, authMode, setSyncSuccess, setPendingCount, setSyncError])
+  }, [user, setSyncSuccess, setPendingCount, setSyncError])
 }

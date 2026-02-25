@@ -28,7 +28,7 @@ export default function NotesListScreen() {
     archiveNote,
     unarchiveNote,
   } = useNotes()
-  const { logout, user, authMode } = useAuthStore()
+  const { logout, user } = useAuthStore()
   const { isSyncing, lastSyncedAt, syncError, pendingCount } = useSyncStore()
   const [isCreating, setIsCreating] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
@@ -155,14 +155,6 @@ export default function NotesListScreen() {
 
   const handleManualSync = async (): Promise<void> => {
     if (!user || isSyncing) return
-
-    if (authMode === 'local') {
-      Alert.alert(
-        'Cloud Sync Unavailable',
-        'This is a local-only account. Link to cloud when online to enable sync.'
-      )
-      return
-    }
 
     try {
       await fullSync(user.id)
