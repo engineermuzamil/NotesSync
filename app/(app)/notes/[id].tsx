@@ -1,12 +1,13 @@
 import {
   createOrEnablePublicShare,
   getNoteShareByNoteId,
+  getShareAnalyticsByNoteId,
   revokePublicShare,
 } from '@/src/db/note-shares'
 import { getNoteById as getDbNoteById } from '@/src/db/notes'
 import { useNotes } from '@/src/hooks/useNotes'
 import { useAuthStore } from '@/src/stores/authStore'
-import type { NoteId, NoteType } from '@/src/types'
+import type { NoteId, NoteType, ShareAnalytics } from '@/src/types'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -32,6 +33,9 @@ export default function NoteEditorScreen() {
   const [noteShare, setNoteShare] = useState(() =>
     noteId ? getNoteShareByNoteId(noteId) : null
   )
+  const [shareAnalytics, setShareAnalytics] = useState<ShareAnalytics | null>(
+    () => (noteId ? getShareAnalyticsByNoteId(noteId) : null)
+  )
 
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -43,11 +47,14 @@ export default function NoteEditorScreen() {
   const refreshShareState = (): void => {
     if (!noteId) {
       setNoteShare(null)
+      setShareAnalytics(null)
       return
     }
 
     const loadedShare = getNoteShareByNoteId(noteId)
+    const loadedAnalytics = getShareAnalyticsByNoteId(noteId)
     setNoteShare(loadedShare)
+    setShareAnalytics(loadedAnalytics)
   }
 
   const normalizeLine = (line: string): string => {
@@ -173,6 +180,7 @@ export default function NoteEditorScreen() {
     if (!noteId) {
       setNote(null)
       setNoteShare(null)
+      setShareAnalytics(null)
       setTitle('')
       setBody('')
       setIsPinned(false)
@@ -182,8 +190,10 @@ export default function NoteEditorScreen() {
 
     const loadedNote = getDbNoteById(noteId)
     const loadedShare = getNoteShareByNoteId(noteId)
+    const loadedAnalytics = getShareAnalyticsByNoteId(noteId)
     setNote(loadedNote)
     setNoteShare(loadedShare)
+    setShareAnalytics(loadedAnalytics)
 
     if (!loadedNote) {
       setTitle('')
@@ -564,6 +574,24 @@ export default function NoteEditorScreen() {
               Share sync failed. Will retry.
             </Text>
           )}
+
+          {shareAnalytics && (
+            <View style={styles.shareAnalyticsRow}>
+              <View style={styles.shareAnalyticsItem}>
+                <Text style={styles.shareAnalyticsValue}>
+                  {shareAnalytics.accessCount}
+                </Text>
+                <Text style={styles.shareAnalyticsLabel}>Views</Text>
+              </View>
+
+              <View style={styles.shareAnalyticsItem}>
+                <Text style={styles.shareAnalyticsValue}>
+                  {shareAnalytics.copyCount}
+                </Text>
+                <Text style={styles.shareAnalyticsLabel}>Copies</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {noteType === 'checklist' ? (
@@ -869,6 +897,29 @@ const styles = StyleSheet.create({
   shareErrorText: {
     fontSize: 12,
     color: '#FF3B30',
+  },
+  shareAnalyticsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  shareAnalyticsItem: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  shareAnalyticsValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+  },
+  shareAnalyticsLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
   },
   checklistContainer: {
     gap: 10,
