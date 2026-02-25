@@ -56,15 +56,38 @@ export const useAuthStore = create<AuthStore>((set) => ({
       return
     }
 
-    const { user, session } = await authService.loginWithEmail(
-      normalizedEmail,
-      password
-    )
-    await sessionService.saveSession(session.accessToken, session.refreshToken)
-    await sessionService.saveOfflineAuthProfile(user, normalizedEmail, password)
-    await sessionService.saveOfflineSessionUser(user)
-    set({ user, authMode: 'cloud', isAuthenticated: true })
-    await registerBackgroundSync()
+    try {
+      const { user, session } = await authService.loginWithEmail(
+        normalizedEmail,
+        password
+      )
+      await sessionService.saveSession(
+        session.accessToken,
+        session.refreshToken
+      )
+      await sessionService.saveOfflineAuthProfile(
+        user,
+        normalizedEmail,
+        password
+      )
+      await sessionService.saveOfflineSessionUser(user)
+      set({ user, authMode: 'cloud', isAuthenticated: true })
+      await registerBackgroundSync()
+      return
+    } catch (error) {
+      const offlineUser = await sessionService.verifyOfflineCredentials(
+        normalizedEmail,
+        password
+      )
+
+      if (!offlineUser) {
+        throw error
+      }
+
+      await sessionService.clearSession()
+      await sessionService.saveOfflineSessionUser(offlineUser)
+      set({ user: offlineUser, authMode: 'local', isAuthenticated: true })
+    }
   },
 
   register: async (email: string, password: string) => {
