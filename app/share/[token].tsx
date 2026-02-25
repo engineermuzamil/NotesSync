@@ -1,7 +1,8 @@
-import { getDb } from '@/src/db'
-import { createNote, getNoteById as getDbNoteById } from '@/src/db/notes'
+import { getEnv } from '@/src/config/env'
+import { createNote } from '@/src/db/notes'
+import { loadSession } from '@/src/services/sessionService'
 import { useAuthStore } from '@/src/stores/authStore'
-import type { Note, NoteId, NoteType } from '@/src/types'
+import type { NoteId, NoteType } from '@/src/types'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
@@ -16,56 +17,84 @@ import {
 export default function SharedNotePreviewScreen() {
   const { token } = useLocalSearchParams<{ token: string }>()
   const user = useAuthStore((state) => state.user)
-  const [sharedNote, setSharedNote] = useState<Note | null>(null)
+  const [sharedNoteId, setSharedNoteId] = useState<NoteId | null>(null)
+  const [sharedNoteTitle, setSharedNoteTitle] = useState('')
+  const [sharedNoteBody, setSharedNoteBody] = useState<string | null>(null)
+  const [sharedNoteType, setSharedNoteType] = useState<NoteType>('text')
+  const [sharedNoteColorLabel, setSharedNoteColorLabel] = useState<
+    string | null
+  >(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const loadSharedNote = (): void => {
+    const loadSharedNote = async (): Promise<void> => {
       const shareToken = typeof token === 'string' ? token : ''
 
       if (!shareToken) {
-        setSharedNote(null)
+        setSharedNoteId(null)
         setIsLoading(false)
         return
       }
 
       try {
-        const db = getDb()
-        const shareRow = db.getFirstSync<{
-          note_id: string
-          visibility: string
-          is_revoked: number
-        }>(
-          'SELECT note_id, visibility, is_revoked FROM note_shares WHERE token = ? LIMIT 1',
-          shareToken
-        )
+        const env = getEnv()
+        const endpoint = `${env.supabaseUrl}/functions/v1/note-share?token=${encodeURIComponent(shareToken)}`
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            apikey: env.supabaseAnonKey,
+            authorization: `Bearer ${env.supabaseAnonKey}`,
+          },
+        })
 
-        if (!shareRow) {
-          setSharedNote(null)
+        if (!response.ok) {
+          setSharedNoteId(null)
           setIsLoading(false)
           return
         }
 
-        if (shareRow.visibility !== 'public' || shareRow.is_revoked === 1) {
-          setSharedNote(null)
+        const payload = (await response.json()) as Record<string, unknown>
+        const notePayload = payload.note as Record<string, unknown>
+        const noteId = notePayload.id
+        const noteTitle = notePayload.title
+        const noteBody = notePayload.body
+        const noteType = notePayload.type
+        const noteColorLabel = notePayload.colorLabel
+
+        if (
+          typeof noteId !== 'string' ||
+          typeof noteTitle !== 'string' ||
+          (noteBody !== null && typeof noteBody !== 'string') ||
+          (noteType !== 'text' &&
+            noteType !== 'checklist' &&
+            noteType !== 'bullets') ||
+          (noteColorLabel !== null && typeof noteColorLabel !== 'string')
+        ) {
+          setSharedNoteId(null)
           setIsLoading(false)
           return
         }
 
-        const note = getDbNoteById(shareRow.note_id as NoteId)
-        setSharedNote(note)
+        setSharedNoteId(noteId as NoteId)
+        setSharedNoteTitle(noteTitle)
+        setSharedNoteBody(noteBody as string | null)
+        setSharedNoteType(noteType)
+        setSharedNoteColorLabel(noteColorLabel as string | null)
       } catch {
-        setSharedNote(null)
+        setSharedNoteId(null)
       } finally {
         setIsLoading(false)
       }
     }
 
-    loadSharedNote()
+    loadSharedNote().catch(() => {
+      setSharedNoteId(null)
+      setIsLoading(false)
+    })
   }, [token])
 
-  const handleCopyToMyAccount = (): void => {
-    if (!sharedNote) {
+  const handleCopyToMyAccount = async (): Promise<void> => {
+    if (!sharedNoteId) {
       return
     }
 
@@ -89,19 +118,34 @@ export default function SharedNotePreviewScreen() {
       return
     }
 
+    const session = await loadSession()
+    if (session) {
+      const shareToken = typeof token === 'string' ? token : ''
+      const env = getEnv()
+      const endpoint = `${env.supabaseUrl}/functions/v1/note-share?token=${encodeURIComponent(shareToken)}`
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: env.supabaseAnonKey,
+          authorization: `Bearer ${session.accessToken}`,
+          'content-type': 'application/json',
+        },
+      }).catch(() => {})
+    }
+
     const copiedTitle =
-      sharedNote.title.trim().length > 0
-        ? `Copy of ${sharedNote.title}`
+      sharedNoteTitle.trim().length > 0
+        ? `Copy of ${sharedNoteTitle}`
         : 'Copy of Untitled note'
 
     const copiedNote = createNote({
       userId: user.id,
-      type: sharedNote.type as NoteType,
+      type: sharedNoteType,
       title: copiedTitle,
-      body: sharedNote.body,
+      body: sharedNoteBody,
       isPinned: false,
       isArchived: false,
-      colorLabel: sharedNote.colorLabel,
+      colorLabel: sharedNoteColorLabel,
     })
 
     Alert.alert('Copied', 'A new independent copy was saved to your account.', [
@@ -130,7 +174,7 @@ export default function SharedNotePreviewScreen() {
     )
   }
 
-  if (!sharedNote) {
+  if (!sharedNoteId) {
     return (
       <View style={styles.centeredContainer}>
         <Text style={styles.title}>Shared note unavailable</Text>
@@ -155,10 +199,10 @@ export default function SharedNotePreviewScreen() {
         contentContainerStyle={styles.contentInner}
       >
         <Text style={styles.noteTitle}>
-          {sharedNote.title || 'Untitled note'}
+          {sharedNoteTitle || 'Untitled note'}
         </Text>
-        <Text style={styles.noteMeta}>Type: {sharedNote.type}</Text>
-        <Text style={styles.noteBody}>{sharedNote.body ?? ''}</Text>
+        <Text style={styles.noteMeta}>Type: {sharedNoteType}</Text>
+        <Text style={styles.noteBody}>{sharedNoteBody ?? ''}</Text>
       </ScrollView>
 
       <View style={styles.footer}>
