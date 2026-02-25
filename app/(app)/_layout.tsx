@@ -61,6 +61,7 @@ export default function AppLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="notes" />
+      <Stack.Screen name="share-note" />
     </Stack>
   )
 }
