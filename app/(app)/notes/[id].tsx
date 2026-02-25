@@ -1,5 +1,11 @@
+import {
+  createOrEnablePublicShare,
+  getNoteShareByNoteId,
+  revokePublicShare,
+} from '@/src/db/note-shares'
 import { getNoteById as getDbNoteById } from '@/src/db/notes'
 import { useNotes } from '@/src/hooks/useNotes'
+import { useAuthStore } from '@/src/stores/authStore'
 import type { NoteId, NoteType } from '@/src/types'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -13,12 +19,18 @@ import {
   View,
 } from 'react-native'
 
+const PUBLIC_SHARE_BASE_URL = 'https://notessync.app/share'
+
 export default function NoteEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { updateNote, deleteNote } = useNotes()
+  const user = useAuthStore((state) => state.user)
   const noteId = typeof id === 'string' ? (id as NoteId) : null
   const [note, setNote] = useState(() =>
     noteId ? getDbNoteById(noteId) : null
+  )
+  const [noteShare, setNoteShare] = useState(() =>
+    noteId ? getNoteShareByNoteId(noteId) : null
   )
 
   const [title, setTitle] = useState('')
@@ -27,6 +39,16 @@ export default function NoteEditorScreen() {
   const [noteType, setNoteType] = useState<NoteType>('text')
 
   const saveTimeoutRef = useRef<number | null>(null)
+
+  const refreshShareState = (): void => {
+    if (!noteId) {
+      setNoteShare(null)
+      return
+    }
+
+    const loadedShare = getNoteShareByNoteId(noteId)
+    setNoteShare(loadedShare)
+  }
 
   const normalizeLine = (line: string): string => {
     return line.replace(/^\s*(•\s+|\[\s?[xX ]\]\s+)/, '')
@@ -150,6 +172,7 @@ export default function NoteEditorScreen() {
   useEffect(() => {
     if (!noteId) {
       setNote(null)
+      setNoteShare(null)
       setTitle('')
       setBody('')
       setIsPinned(false)
@@ -158,7 +181,9 @@ export default function NoteEditorScreen() {
     }
 
     const loadedNote = getDbNoteById(noteId)
+    const loadedShare = getNoteShareByNoteId(noteId)
     setNote(loadedNote)
+    setNoteShare(loadedShare)
 
     if (!loadedNote) {
       setTitle('')
@@ -173,6 +198,61 @@ export default function NoteEditorScreen() {
     setIsPinned(loadedNote.isPinned)
     setNoteType(loadedNote.type)
   }, [noteId])
+
+  const shareUrl =
+    noteShare && noteShare.visibility === 'public' && !noteShare.isRevoked
+      ? `${PUBLIC_SHARE_BASE_URL}/${noteShare.token}`
+      : null
+
+  const handleShareGenerate = (): void => {
+    if (!noteId || !user) {
+      return
+    }
+
+    const updatedShare = createOrEnablePublicShare(noteId, user.id)
+    if (!updatedShare) {
+      Alert.alert(
+        'Share unavailable',
+        'Only existing notes owned by your account can be shared.'
+      )
+      return
+    }
+
+    refreshShareState()
+    const nextUrl = `${PUBLIC_SHARE_BASE_URL}/${updatedShare.token}`
+    Alert.alert('Public URL generated', nextUrl)
+  }
+
+  const handleShareRevoke = (): void => {
+    if (!noteId || !user) {
+      return
+    }
+
+    Alert.alert('Revoke Public URL', 'This note will become private again.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Revoke',
+        style: 'destructive',
+        onPress: () => {
+          const updatedShare = revokePublicShare(noteId, user.id)
+          if (!updatedShare) {
+            Alert.alert('Revoke failed', 'Unable to revoke this shared URL.')
+            return
+          }
+
+          refreshShareState()
+        },
+      },
+    ])
+  }
+
+  const handleShowShareUrl = (): void => {
+    if (!shareUrl) {
+      return
+    }
+
+    Alert.alert('Public URL', shareUrl)
+  }
 
   const handleTitleChange = (text: string): void => {
     setTitle(text)
@@ -441,6 +521,51 @@ export default function NoteEditorScreen() {
           autoFocus
         />
 
+        <View style={styles.sharePanel}>
+          <View style={styles.shareHeaderRow}>
+            <Text style={styles.shareTitle}>Sharing</Text>
+            <Text style={styles.shareStatusText}>
+              {shareUrl ? 'Public' : 'Private'}
+            </Text>
+          </View>
+
+          {shareUrl ? (
+            <>
+              <Pressable
+                style={styles.shareUrlButton}
+                onPress={handleShowShareUrl}
+              >
+                <Text style={styles.shareUrlButtonText}>{shareUrl}</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.shareRevokeButton}
+                onPress={handleShareRevoke}
+              >
+                <Text style={styles.shareRevokeButtonText}>Revoke URL</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable
+              style={styles.shareCreateButton}
+              onPress={handleShareGenerate}
+            >
+              <Text style={styles.shareCreateButtonText}>
+                Generate public URL
+              </Text>
+            </Pressable>
+          )}
+
+          {noteShare?.syncStatus === 'pending' && (
+            <Text style={styles.shareHintText}>Share update pending sync</Text>
+          )}
+          {noteShare?.syncStatus === 'failed' && (
+            <Text style={styles.shareErrorText}>
+              Share sync failed. Will retry.
+            </Text>
+          )}
+        </View>
+
         {noteType === 'checklist' ? (
           <View style={styles.checklistContainer}>
             <View style={styles.checklistSummaryRow}>
@@ -677,6 +802,73 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     minHeight: 200,
     paddingVertical: 8,
+  },
+  sharePanel: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#f9f9f9',
+    gap: 10,
+    marginBottom: 16,
+  },
+  shareHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  shareTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  shareStatusText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  shareCreateButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#eef5ff',
+    alignSelf: 'flex-start',
+  },
+  shareCreateButtonText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  shareUrlButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    backgroundColor: '#fff',
+  },
+  shareUrlButtonText: {
+    fontSize: 13,
+    color: '#007AFF',
+  },
+  shareRevokeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#fff0ee',
+    alignSelf: 'flex-start',
+  },
+  shareRevokeButtonText: {
+    fontSize: 13,
+    color: '#FF3B30',
+    fontWeight: '600',
+  },
+  shareHintText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  shareErrorText: {
+    fontSize: 12,
+    color: '#FF3B30',
   },
   checklistContainer: {
     gap: 10,
