@@ -19,7 +19,7 @@ export default function AppLayout() {
         const sessionUser = await sessionService.loadUserFromSession()
 
         if (sessionUser) {
-          setUser(sessionUser)
+          setUser(sessionUser, 'cloud')
           // Register background sync after successful auth
           await registerBackgroundSync()
           return
@@ -27,8 +27,7 @@ export default function AppLayout() {
 
         const offlineUser = await sessionService.loadOfflineSessionUser()
         if (offlineUser) {
-          setUser(offlineUser)
-          await registerBackgroundSync()
+          setUser(offlineUser, 'local')
         }
       } catch {
         // Session restoration failed, user will need to log in

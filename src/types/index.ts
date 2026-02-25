@@ -64,3 +64,5 @@ export interface AuthResponse {
   user: AuthUser
   session: AuthSession
 }
+
+export type AuthMode = 'cloud' | 'local'
