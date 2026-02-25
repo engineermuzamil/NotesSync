@@ -607,7 +607,6 @@ export default function NoteEditorScreen() {
         <Text style={styles.syncStatus}>
           {note.syncStatus === 'pending' && '⏳ Syncing...'}
           {note.syncStatus === 'synced' && '✓ Synced'}
-          {note.syncStatus === 'failed' && '❌ Sync failed'}
         </Text>
         <Text style={styles.lastUpdated}>
           Last updated: {new Date(note.updatedAt).toLocaleString()}

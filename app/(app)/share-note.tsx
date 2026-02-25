@@ -184,12 +184,6 @@ export default function ShareNoteScreen() {
                 <Text style={styles.copyButtonText}>Copy Link</Text>
               </Pressable>
 
-              {noteShare?.syncStatus === 'failed' && (
-                <Text style={styles.syncWarning}>
-                  ❌ Sync failed - sharing may be disabled
-                </Text>
-              )}
-
               {noteShare?.syncStatus === 'pending' && (
                 <Text style={styles.syncPending}>
                   ⏱️ Syncing share settings...
@@ -412,15 +406,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#fff',
-  },
-  syncWarning: {
-    fontSize: 12,
-    color: '#FF3B30',
-    fontWeight: '500',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    backgroundColor: '#FFF4F2',
-    borderRadius: 6,
   },
   syncPending: {
     fontSize: 12,

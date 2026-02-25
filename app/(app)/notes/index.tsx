@@ -29,7 +29,7 @@ export default function NotesListScreen() {
     unarchiveNote,
   } = useNotes()
   const { logout, user } = useAuthStore()
-  const { isSyncing, lastSyncedAt, syncError, pendingCount } = useSyncStore()
+  const { isSyncing, lastSyncedAt, pendingCount } = useSyncStore()
   const [isCreating, setIsCreating] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
 
@@ -162,10 +162,8 @@ export default function NotesListScreen() {
       if (showArchived) {
         loadArchivedNotes()
       }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Sync failed'
-      Alert.alert('Sync Error', errorMessage)
+    } catch {
+      // Intentionally suppress sync errors in UI.
     }
   }
 
@@ -257,9 +255,6 @@ export default function NotesListScreen() {
                 <Text style={styles.syncStatusText}>
                   Last synced: {new Date(lastSyncedAt).toLocaleTimeString()}
                 </Text>
-              )}
-              {syncError && (
-                <Text style={styles.syncErrorText}>Sync failed</Text>
               )}
               {pendingCount > 0 && !isSyncing && (
                 <Text style={styles.pendingText}>{pendingCount} pending</Text>
@@ -378,11 +373,6 @@ const styles = StyleSheet.create({
   syncStatusText: {
     fontSize: 12,
     color: '#666',
-  },
-  syncErrorText: {
-    fontSize: 12,
-    color: '#FF3B30',
-    fontWeight: '600',
   },
   pendingText: {
     fontSize: 12,
