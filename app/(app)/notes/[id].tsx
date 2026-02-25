@@ -1,13 +1,6 @@
-import {
-  createOrEnablePublicShare,
-  getNoteShareByNoteId,
-  getShareAnalyticsByNoteId,
-  revokePublicShare,
-} from '@/src/db/note-shares'
 import { getNoteById as getDbNoteById } from '@/src/db/notes'
 import { useNotes } from '@/src/hooks/useNotes'
-import { useAuthStore } from '@/src/stores/authStore'
-import type { NoteId, NoteType, ShareAnalytics } from '@/src/types'
+import type { NoteId, NoteType } from '@/src/types'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -20,21 +13,12 @@ import {
   View,
 } from 'react-native'
 
-const PUBLIC_SHARE_BASE_URL = 'https://notessync.app/share'
-
 export default function NoteEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { updateNote, deleteNote } = useNotes()
-  const user = useAuthStore((state) => state.user)
   const noteId = typeof id === 'string' ? (id as NoteId) : null
   const [note, setNote] = useState(() =>
     noteId ? getDbNoteById(noteId) : null
-  )
-  const [noteShare, setNoteShare] = useState(() =>
-    noteId ? getNoteShareByNoteId(noteId) : null
-  )
-  const [shareAnalytics, setShareAnalytics] = useState<ShareAnalytics | null>(
-    () => (noteId ? getShareAnalyticsByNoteId(noteId) : null)
   )
 
   const [title, setTitle] = useState('')
@@ -43,19 +27,6 @@ export default function NoteEditorScreen() {
   const [noteType, setNoteType] = useState<NoteType>('text')
 
   const saveTimeoutRef = useRef<number | null>(null)
-
-  const refreshShareState = (): void => {
-    if (!noteId) {
-      setNoteShare(null)
-      setShareAnalytics(null)
-      return
-    }
-
-    const loadedShare = getNoteShareByNoteId(noteId)
-    const loadedAnalytics = getShareAnalyticsByNoteId(noteId)
-    setNoteShare(loadedShare)
-    setShareAnalytics(loadedAnalytics)
-  }
 
   const normalizeLine = (line: string): string => {
     return line.replace(/^\s*(•\s+|\[\s?[xX ]\]\s+)/, '')
@@ -179,8 +150,6 @@ export default function NoteEditorScreen() {
   useEffect(() => {
     if (!noteId) {
       setNote(null)
-      setNoteShare(null)
-      setShareAnalytics(null)
       setTitle('')
       setBody('')
       setIsPinned(false)
@@ -189,11 +158,7 @@ export default function NoteEditorScreen() {
     }
 
     const loadedNote = getDbNoteById(noteId)
-    const loadedShare = getNoteShareByNoteId(noteId)
-    const loadedAnalytics = getShareAnalyticsByNoteId(noteId)
     setNote(loadedNote)
-    setNoteShare(loadedShare)
-    setShareAnalytics(loadedAnalytics)
 
     if (!loadedNote) {
       setTitle('')
@@ -208,61 +173,6 @@ export default function NoteEditorScreen() {
     setIsPinned(loadedNote.isPinned)
     setNoteType(loadedNote.type)
   }, [noteId])
-
-  const shareUrl =
-    noteShare && noteShare.visibility === 'public' && !noteShare.isRevoked
-      ? `${PUBLIC_SHARE_BASE_URL}/${noteShare.token}`
-      : null
-
-  const handleShareGenerate = (): void => {
-    if (!noteId || !user) {
-      return
-    }
-
-    const updatedShare = createOrEnablePublicShare(noteId, user.id)
-    if (!updatedShare) {
-      Alert.alert(
-        'Share unavailable',
-        'Only existing notes owned by your account can be shared.'
-      )
-      return
-    }
-
-    refreshShareState()
-    const nextUrl = `${PUBLIC_SHARE_BASE_URL}/${updatedShare.token}`
-    Alert.alert('Public URL generated', nextUrl)
-  }
-
-  const handleShareRevoke = (): void => {
-    if (!noteId || !user) {
-      return
-    }
-
-    Alert.alert('Revoke Public URL', 'This note will become private again.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Revoke',
-        style: 'destructive',
-        onPress: () => {
-          const updatedShare = revokePublicShare(noteId, user.id)
-          if (!updatedShare) {
-            Alert.alert('Revoke failed', 'Unable to revoke this shared URL.')
-            return
-          }
-
-          refreshShareState()
-        },
-      },
-    ])
-  }
-
-  const handleShowShareUrl = (): void => {
-    if (!shareUrl) {
-      return
-    }
-
-    Alert.alert('Public URL', shareUrl)
-  }
 
   const handleTitleChange = (text: string): void => {
     setTitle(text)
@@ -451,6 +361,15 @@ export default function NoteEditorScreen() {
     router.back()
   }
 
+  const handleOpenShare = (): void => {
+    if (noteId) {
+      router.push({
+        pathname: '/(app)/share-note',
+        params: { noteId },
+      })
+    }
+  }
+
   if (!note) {
     return (
       <View style={styles.errorContainer}>
@@ -470,6 +389,10 @@ export default function NoteEditorScreen() {
         </Pressable>
 
         <View style={styles.headerActions}>
+          <Pressable style={styles.headerButton} onPress={handleOpenShare}>
+            <Text style={styles.headerButtonText}>🔗 Share</Text>
+          </Pressable>
+
           <Pressable style={styles.headerButton} onPress={handleTogglePin}>
             <Text style={styles.headerButtonText}>
               {isPinned ? '📌 Unpin' : '📌 Pin'}
@@ -530,69 +453,6 @@ export default function NoteEditorScreen() {
           multiline
           autoFocus
         />
-
-        <View style={styles.sharePanel}>
-          <View style={styles.shareHeaderRow}>
-            <Text style={styles.shareTitle}>Sharing</Text>
-            <Text style={styles.shareStatusText}>
-              {shareUrl ? 'Public' : 'Private'}
-            </Text>
-          </View>
-
-          {shareUrl ? (
-            <>
-              <Pressable
-                style={styles.shareUrlButton}
-                onPress={handleShowShareUrl}
-              >
-                <Text style={styles.shareUrlButtonText}>{shareUrl}</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.shareRevokeButton}
-                onPress={handleShareRevoke}
-              >
-                <Text style={styles.shareRevokeButtonText}>Revoke URL</Text>
-              </Pressable>
-            </>
-          ) : (
-            <Pressable
-              style={styles.shareCreateButton}
-              onPress={handleShareGenerate}
-            >
-              <Text style={styles.shareCreateButtonText}>
-                Generate public URL
-              </Text>
-            </Pressable>
-          )}
-
-          {noteShare?.syncStatus === 'pending' && (
-            <Text style={styles.shareHintText}>Share update pending sync</Text>
-          )}
-          {noteShare?.syncStatus === 'failed' && (
-            <Text style={styles.shareErrorText}>
-              Share sync failed. Will retry.
-            </Text>
-          )}
-
-          {shareAnalytics && (
-            <View style={styles.shareAnalyticsRow}>
-              <View style={styles.shareAnalyticsItem}>
-                <Text style={styles.shareAnalyticsValue}>
-                  {shareAnalytics.accessCount}
-                </Text>
-                <Text style={styles.shareAnalyticsLabel}>Views</Text>
-              </View>
-
-              <View style={styles.shareAnalyticsItem}>
-                <Text style={styles.shareAnalyticsValue}>
-                  {shareAnalytics.copyCount}
-                </Text>
-                <Text style={styles.shareAnalyticsLabel}>Copies</Text>
-              </View>
-            </View>
-          )}
-        </View>
 
         {noteType === 'checklist' ? (
           <View style={styles.checklistContainer}>
